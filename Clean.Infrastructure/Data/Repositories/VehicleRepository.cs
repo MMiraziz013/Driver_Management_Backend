@@ -1,0 +1,55 @@
+using Clean.Application.Abstractions;
+using Clean.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+
+namespace ClassLibrary1.Data.Repositories;
+
+public class VehicleRepository : IVehicleRepository
+{
+    private readonly DataContext _context;
+
+    public VehicleRepository(DataContext context)
+    {
+        _context = context;
+    }
+    
+    public async Task<List<Vehicle>> GetAllAsync()
+    {
+        return await _context.Vehicles
+            .Include(v => v.Assignments)
+            .ThenInclude(a => a.Trip)
+            .Include(v => v.VehicleType) // Added this to ensure type names are available
+            .ToListAsync();
+    }
+    
+    public async Task<Vehicle?> GetByIdAsync(int id)
+    {
+        return await _context.Vehicles
+            .Include(v => v.VehicleType)
+            .Include(v => v.Assignments)
+            .FirstOrDefaultAsync(v => v.Id == id);
+    }
+
+    public async Task AddAsync(Vehicle vehicle)
+    {
+        await _context.Vehicles.AddAsync(vehicle);
+    }
+
+    public void Update(Vehicle vehicle)
+    {
+        _context.Vehicles.Update(vehicle);
+    }
+
+    public async Task<bool> Delete(int id)
+    {
+        var existing = await _context.Vehicles.FindAsync(id);
+        if (existing == null)
+        {
+            return false;
+        }
+
+        _context.Vehicles.Remove(existing);
+        var result = await _context.SaveChangesAsync();
+        return result > 0;
+    }
+}
