@@ -7,8 +7,10 @@ namespace Clean.Application.Abstractions;
 public interface IDriverService
 {
     public Task<Response<GetDriverDto>> AddDriverAsync(AddDriverDto dto);
-    public Response<GetDriverDto?> GetDriverByIdAsync(int id);
+    public Task<Response<GetDriverDto?>> GetDriverByIdAsync(int id);
     public Task<PaginatedResponse<GetDriverDto>> GetDriverPaginatedAsync(PaginationFilter filter);
-    public Response<GetDriverDto?> UpdateDriverAsync(UpdateDriverDto dto);
-    public Response<bool> DeactivateDriverAsync(int id);
+    public Task<Response<GetDriverDto?>> UpdateDriverAsync(UpdateDriverDto dto);
+    public Task<Response<bool>> DeactivateDriverAsync(int id);
+
+    Task<Response<bool>> DeleteDriverAsync(int id);
 }

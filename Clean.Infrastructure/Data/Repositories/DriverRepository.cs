@@ -76,4 +76,32 @@ public class DriverRepository : IDriverRepository
             .ThenInclude(a => a.Trip)
             .ToListAsync();
     }
+
+    public async Task<Driver?> UpdateDriverAsync(Driver driver)
+    {
+        var toUpdate = await GetDriverByIdAsync(driver.Id);
+
+        if (toUpdate is null)
+        {
+            return null;
+        }
+        _context.Entry(toUpdate).CurrentValues.SetValues(driver);
+        var updated= await _context.SaveChangesAsync();
+        
+        return updated > 0 ? toUpdate : null;
+    }
+
+    public async Task<bool> DeleteDriverAsync(int id)
+    {
+        var toDelete = await GetDriverByIdAsync(id);
+        if (toDelete is null)
+        {
+            return false;
+        }
+
+        _context.Remove(toDelete);
+        var isDeleted = await _context.SaveChangesAsync();
+
+        return isDeleted > 0;
+    }
 }

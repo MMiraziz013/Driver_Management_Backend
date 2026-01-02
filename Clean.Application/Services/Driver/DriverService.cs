@@ -52,9 +52,25 @@ public class DriverService : IDriverService
         return new Response<GetDriverDto>(HttpStatusCode.OK, added);
     }
 
-    public Response<GetDriverDto?> GetDriverByIdAsync(int id)
+    public async Task<Response<GetDriverDto?>> GetDriverByIdAsync(int id)
     {
-        throw new NotImplementedException();
+        var driver = await _driverRepository.GetDriverByIdAsync(id);
+        if (driver is null)
+        {
+            return new Response<GetDriverDto?>(HttpStatusCode.NotFound, $"No driver with id: {id}" );
+        }
+        var dto = new GetDriverDto
+        {
+            Id = driver.Id,
+            FullName = driver.FullName,
+            Age = driver.Age,
+            Address = driver.Address,
+            EmploymentType = driver.EmploymentType,
+            LicenseCategory = driver.Category,
+            IsActive = driver.IsActive
+        };
+
+        return new Response<GetDriverDto?>(HttpStatusCode.OK, dto);
     }
 
     public async Task<PaginatedResponse<GetDriverDto>> GetDriverPaginatedAsync(PaginationFilter filter)
@@ -66,12 +82,71 @@ public class DriverService : IDriverService
         return response;
     }
 
-    public Response<GetDriverDto?> UpdateDriverAsync(UpdateDriverDto dto)
+    public async Task<Response<GetDriverDto?>> UpdateDriverAsync(UpdateDriverDto dto)
     {
-        throw new NotImplementedException();
+        var toUpdate = await _driverRepository.GetDriverByIdAsync(dto.Id);
+        if (toUpdate is null)
+        {
+            return new Response<GetDriverDto?>(HttpStatusCode.NotFound, $"No driver with id {dto.Id} to update");
+        }
+        
+        if (string.IsNullOrEmpty(dto.FullName) == false)
+        {
+            toUpdate.FullName = dto.FullName;
+        }
+
+        if (string.IsNullOrEmpty(dto.Address) == false)
+        {
+            toUpdate.Address = dto.Address;
+        }
+
+        if (dto.BirthYear.HasValue)
+        {
+            toUpdate.BirthDay = dto.BirthYear.Value;
+        }
+
+        if (dto.DriverCategory.HasValue)
+        {
+            toUpdate.Category = dto.DriverCategory.Value;
+        }
+
+        if (dto.EmploymentType.HasValue)
+        {
+            toUpdate.EmploymentType = dto.EmploymentType.Value;
+        }
+
+        var updated = await _driverRepository.UpdateDriverAsync(toUpdate);
+        if (updated is null)
+        {
+            return new Response<GetDriverDto?>(HttpStatusCode.BadRequest, "Error while updating the driver in the database");
+        }
+
+        var returned = new GetDriverDto
+        {
+            Id = updated.Id,
+            FullName = updated.FullName,
+            Age = updated.Age,
+            Address = updated.Address,
+            EmploymentType = updated.EmploymentType,
+            LicenseCategory = updated.Category,
+            IsActive = updated.IsActive
+        };
+
+        return new Response<GetDriverDto?>(HttpStatusCode.OK, returned);
     }
 
-    public Response<bool> DeactivateDriverAsync(int id)
+    public async Task<Response<bool>> DeleteDriverAsync(int id)
+    {
+        var exists = await _driverRepository.GetDriverByIdAsync(id);
+        if (exists is null)
+        {
+            return new Response<bool>(HttpStatusCode.NotFound, $"No driver with id: {id}");
+        }
+
+        var isDeleted = await _driverRepository.DeleteDriverAsync(id);
+        return new Response<bool>(HttpStatusCode.OK, isDeleted);
+    }
+    public async Task<Response<bool>> DeactivateDriverAsync(int id)
     {
         throw new NotImplementedException();
     }

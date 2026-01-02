@@ -34,4 +34,18 @@ public class DriverController : Controller
         var response = await _driverService.GetDriverPaginatedAsync(filter);
         return StatusCode(response.StatusCode, response);
     }
+
+    [HttpPut]
+    public async Task<IActionResult> EditDriverAsync(UpdateDriverDto dto)
+    {
+        var response = await _driverService.UpdateDriverAsync(dto);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteDriverAsync(int id)
+    {
+        var response = await _driverService.DeleteDriverAsync(id);
+        return StatusCode(response.StatusCode, response);
+    }
 }

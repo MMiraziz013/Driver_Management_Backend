@@ -88,6 +88,15 @@ public static class Program
                 }
             });
         });
+        
+        // -------------------- ENUM Fix --------------------
+
+        
+        builder.Services.AddControllers()
+            .AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+            });
 
         // -------------------- CORS --------------------
         builder.Services.AddCors(options =>

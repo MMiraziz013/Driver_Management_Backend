@@ -12,4 +12,8 @@ public interface IDriverRepository
     Task<(List<GetDriverDto> drivers, int totalRecords)> GetDriversAsync(PaginationFilter filter);
     
     Task<List<Driver>> GetActiveDriversWithDetailsAsync();
+
+    Task<Driver?> UpdateDriverAsync(Driver driver);
+
+    Task<bool> DeleteDriverAsync(int id);
 }

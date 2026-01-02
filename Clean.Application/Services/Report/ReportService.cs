@@ -8,19 +8,48 @@ using Microsoft.AspNetCore.Http;
 using MiniExcelLibs;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
+using Clean.Application.Dtos.ReportPeriod;
 
 namespace Clean.Application.Services.Report;
 
 public class ReportService : IReportService
 {
     private readonly IUnitOfWork _uow;
+    
+    // Configuration: Max drivers per vehicle
+    private const int MAX_DRIVERS_PER_VEHICLE = 4;
 
     public ReportService(IUnitOfWork uow)
     {
         _uow = uow;
     }
 
-public async Task<Response<string>> UploadReportAsync(IFormFile file, int periodId)
+    public async Task<Response<List<GetReportPeriodDto>>> GetAllPeriods()
+    {
+        try
+        {
+            var allPeriods = await _uow.ReportPeriods.GetAllAsync();
+            var all = allPeriods.Select(p => new GetReportPeriodDto
+            {
+                Id = p.Id,
+                StartDate = p.StartDate,
+                EndDate = p.EndDate,
+                Description = p.Description,
+                GeneratedAt = p.GeneratedAt,
+                GeneratedBy = p.GeneratedBy,
+                Status = ReportStatus.Finalized
+            }).ToList();
+            
+            return new Response<List<GetReportPeriodDto>>(HttpStatusCode.OK, all);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+    }
+
+    public async Task<Response<string>> UploadReportAsync(IFormFile file, int periodId)
     {
         try
         {
@@ -120,7 +149,7 @@ public async Task<Response<string>> UploadReportAsync(IFormFile file, int period
             
             var newAssignments = new List<DriverAssignment>();
             
-            // NEW: Track vehicle-driver pairings (max 2 drivers per vehicle)
+            // Track vehicle-driver pairings (max 4 drivers per vehicle)
             var vehicleDriverCount = new Dictionary<int, HashSet<int>>(); // vehicleId -> set of driverIds
             
             foreach (var trip in trips)
@@ -155,8 +184,8 @@ public async Task<Response<string>> UploadReportAsync(IFormFile file, int period
                         .Where(d => Has10HourRestFromPreviousShift(d, tripStart, newAssignments))
                         .Where(d => CanFitInto20HourShift(d, tripStart, tripEnd, newAssignments))
                         .Where(d => WithinWeeklyLimits(d, tripStart, tripEnd, newAssignments))
-                        // NEW: Only allow if vehicle has <2 drivers OR this driver already drives it
-                        .Where(d => vehicleDriverCount[v.Id].Count < 2 || vehicleDriverCount[v.Id].Contains(d.Id))
+                        // CHANGED: Allow up to 4 drivers per vehicle
+                        .Where(d => vehicleDriverCount[v.Id].Count < MAX_DRIVERS_PER_VEHICLE || vehicleDriverCount[v.Id].Contains(d.Id))
                         // PRIORITY 0: Strongly prefer drivers who already drive this vehicle
                         .OrderByDescending(d => vehicleDriverCount[v.Id].Contains(d.Id))
                         // PRIORITY 1: Drivers already working today (consolidate into shifts)
@@ -213,7 +242,25 @@ public async Task<Response<string>> UploadReportAsync(IFormFile file, int period
             await _uow.Context.DriverAssignments.AddRangeAsync(newAssignments);
             await _uow.CompleteAsync();
             
-            return new Response<string>(HttpStatusCode.OK, "Auto-assignment completed.", "Success");
+            // 6. Generate statistics for comparison
+            var totalTrips = newAssignments.Count;
+            var conflictCount = newAssignments.Count(a => a.HasConflict);
+            var assignedCount = totalTrips - conflictCount;
+            var conflictPercentage = totalTrips > 0 ? (conflictCount * 100.0 / totalTrips) : 0;
+            
+            // Count vehicles and their driver counts
+            var vehicleStats = vehicleDriverCount
+                .Select(kvp => new { VehicleId = kvp.Key, DriverCount = kvp.Value.Count })
+                .OrderByDescending(x => x.DriverCount)
+                .ToList();
+            
+            var statsMessage = $"Auto-assignment completed. " +
+                             $"Assigned: {assignedCount}/{totalTrips} ({100 - conflictPercentage:F1}%), " +
+                             $"Conflicts: {conflictCount} ({conflictPercentage:F1}%). " +
+                             $"Vehicles used: {vehicleStats.Count}, " +
+                             $"Max drivers per vehicle: {(vehicleStats.Any() ? vehicleStats.Max(x => x.DriverCount) : 0)}";
+            
+            return new Response<string>(HttpStatusCode.OK, statsMessage, "Success");
         }
         catch (Exception ex)
         {

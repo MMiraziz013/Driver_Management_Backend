@@ -38,6 +38,13 @@ public class ReportController : Controller
         return StatusCode(response.StatusCode, response);
     }
 
+    [HttpGet]
+    public async Task<IActionResult> GetAllPeriodsAsync()
+    {
+        var response = await _reportService.GetAllPeriods();
+        return StatusCode(response.StatusCode, response);
+    }
+
     /// <summary>
     /// Phase 3: Download the final Excel with driver assignments and conflict highlights.
     /// </summary>
@@ -48,6 +55,12 @@ public class ReportController : Controller
         {
             var fileBytes = await _reportService.ExportReportAsync(periodId);
             var fileName = $"Assignment_Report_Period_{periodId}.xlsx";
+            
+            if (fileBytes.Length == 0)
+            {
+                // Return 404 or 204 so the frontend knows there's no file
+                return NotFound("No data found for this period. Did you run the assignment engine?");
+            }
             
             return File(
                 fileBytes, 

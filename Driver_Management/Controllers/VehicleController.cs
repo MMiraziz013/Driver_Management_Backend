@@ -16,8 +16,11 @@ public class VehicleController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAllAsync() => 
-        Ok(await _vehicleService.GetAllVehiclesAsync());
+    public async Task<IActionResult> GetAllAsync()
+    {
+        var response = await _vehicleService.GetAllVehiclesAsync();
+        return StatusCode(response.StatusCode, response);
+    }
 
     [HttpPost]
     public async Task<IActionResult> CreateAsync(CreateVehicleDto dto)
@@ -26,7 +29,7 @@ public class VehicleController : ControllerBase
         return StatusCode((int)response.StatusCode, response);
     }
 
-    [HttpDelete]
+    [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteAsync(int id)
     {
         var response = await _vehicleService.DeleteVehicleAsync(id);
