@@ -10,6 +10,7 @@ public interface IVehicleService
     Task<Response<Vehicle>> GetVehicleByIdAsync(int id);
     Task<Response<Vehicle>> CreateVehicleAsync(CreateVehicleDto dto);
 
+    Task<Response<GetVehicleDto?>> UpdateVehicleAsync(UpdateVehicleDto dto);
     Task<Response<bool>> DeleteVehicleAsync(int id);
 }
 

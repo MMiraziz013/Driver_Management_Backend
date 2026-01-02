@@ -73,6 +73,59 @@ public class VehicleService : IVehicleService
         }
     }
 
+    public async Task<Response<GetVehicleDto?>> UpdateVehicleAsync(UpdateVehicleDto dto)
+    {
+        var toUpdate = await _uow.Vehicles.GetByIdAsync(dto.Id);
+        if (toUpdate is null)
+        {
+            return new Response<GetVehicleDto?>(HttpStatusCode.NotFound, $"No car with id {dto.Id}");
+        }
+
+        if (string.IsNullOrEmpty(dto.Color) == false)
+        {
+            toUpdate.Color = dto.Color;
+        }
+
+        if (string.IsNullOrEmpty(dto.Model) == false)
+        {
+            toUpdate.Model = dto.Model;
+        }
+
+        if (string.IsNullOrEmpty(dto.PlateNumber) == false)
+        {
+            toUpdate.PlateNumber = dto.PlateNumber;
+        }
+
+        if (dto.RequiredDriverCategory.HasValue)
+        {
+            toUpdate.RequiredDriverCategory = dto.RequiredDriverCategory.Value;
+        }
+
+        if (dto.VehicleTypeId.HasValue)
+        {
+            toUpdate.VehicleTypeId = dto.VehicleTypeId.Value;
+        }
+
+        var updated = await _uow.Vehicles.Update(toUpdate);
+        if (updated is null)
+        {
+            return new Response<GetVehicleDto?>(HttpStatusCode.BadRequest,
+                "Error while updating the vehicle in the database");
+        }
+
+        var returned = new GetVehicleDto
+        {
+            Id = updated.Id,
+            PlateNumber = updated.PlateNumber,
+            Model = updated.Model,
+            Color = updated.Color,
+            VehicleTypeName = updated.VehicleType.Name,
+            RequiredDriverCategory = updated.RequiredDriverCategory.ToString()
+        };
+
+        return new Response<GetVehicleDto?>(HttpStatusCode.OK, returned);
+    }
+
     public async Task<Response<bool>> DeleteVehicleAsync(int id)
     {
         var isDeleted = await _uow.Vehicles.Delete(id);

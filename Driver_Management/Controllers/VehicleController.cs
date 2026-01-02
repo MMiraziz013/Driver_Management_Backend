@@ -29,6 +29,13 @@ public class VehicleController : ControllerBase
         return StatusCode((int)response.StatusCode, response);
     }
 
+    [HttpPut]
+    public async Task<IActionResult> UpdateAsync(UpdateVehicleDto dto)
+    {
+        var response = await _vehicleService.UpdateVehicleAsync(dto);
+        return StatusCode(response.StatusCode, response);
+    }
+
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteAsync(int id)
     {

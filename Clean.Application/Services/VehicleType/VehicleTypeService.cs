@@ -22,6 +22,12 @@ public class VehicleTypeService : IVehicleTypeService
     public async Task<PaginatedResponse<GetVehicleTypeDto>> GetVehicleTypesAsync(
         PaginationFilter filter)
     {
+        
+        // Setting the default page size to 20
+        if (filter.PageSize == 10)
+        {
+            filter.PageSize = 20;
+        }
         var query = _vehicleTypeRepository.Query();
 
         var totalRecords = await query.CountAsync();

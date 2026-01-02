@@ -35,9 +35,32 @@ public class VehicleRepository : IVehicleRepository
         await _context.Vehicles.AddAsync(vehicle);
     }
 
-    public void Update(Vehicle vehicle)
+    public async Task<Vehicle?> Update(Vehicle vehicle)
     {
-        _context.Vehicles.Update(vehicle);
+        var toUpdate = await GetByIdAsync(vehicle.Id);
+        if (toUpdate is null)
+        {
+            return null;
+        }
+
+        // Manually update properties instead of SetValues
+        toUpdate.PlateNumber = vehicle.PlateNumber;
+        toUpdate.Model = vehicle.Model;
+        toUpdate.Color = vehicle.Color;
+        toUpdate.VehicleTypeId = vehicle.VehicleTypeId;
+        toUpdate.RequiredDriverCategory = vehicle.RequiredDriverCategory;
+        toUpdate.UpdatedAt = DateTime.UtcNow;
+
+        var updated = await _context.SaveChangesAsync();
+
+        if (updated > 0)
+        {
+            // Reload with navigation properties
+            await _context.Entry(toUpdate).Reference(v => v.VehicleType).LoadAsync();
+            return toUpdate;
+        }
+
+        return null;
     }
 
     public async Task<bool> Delete(int id)
