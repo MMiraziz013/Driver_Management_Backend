@@ -38,5 +38,25 @@ public class VehicleConfigurations : IEntityTypeConfiguration<Vehicle>
             .WithOne(a => a.Vehicle)
             .HasForeignKey(a => a.VehicleId)
             .OnDelete(DeleteBehavior.Cascade);
+        
+        builder.Property(v => v.FuelTankCapacity)
+            .HasDefaultValue(0);
+
+        builder.Property(v => v.FuelConsumptionPer100Km)
+            .HasDefaultValue(0);
+
+        builder.Property(v => v.FuelType)
+            .HasMaxLength(20)
+            .HasDefaultValue("");
+
+        builder.Property(v => v.InitialFuelLevel)
+            .HasDefaultValue(0);
+
+        // ===== NEW NAVIGATION PROPERTY =====
+
+        builder.HasMany(v => v.FuelAllocations)
+            .WithOne(a => a.Vehicle)
+            .HasForeignKey(a => a.VehicleId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -1,6 +1,8 @@
 ﻿using Clean.Application.Abstractions;
 using Clean.Application.Services.Driver;
+using Clean.Application.Services.Gas;
 using Clean.Application.Services.JWT;
+using Clean.Application.Services.Mapbox;
 using Clean.Application.Services.Report;
 using Clean.Application.Services.ReportPeriod;
 using Clean.Application.Services.ServiceType;
@@ -28,7 +30,15 @@ public static class ApplicationInjection
         services.AddTransient<ITripService, TripService>();
         services.AddTransient<IReportService, ReportService>();
         services.AddTransient<IServiceTypeService, ServiceTypeService>();
+        services.AddScoped<IGasService, GasService>();
 
+        
+        services.AddHttpClient<IMapboxService, MapboxService>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+        services.AddScoped<IMapboxService, MapboxService>();
+        
         services.AddTransient<IJwtTokenService, JwtTokenService>();
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
         services.Configure<JwtTokenService>(configuration.GetSection(JwtOptions.SectionName));

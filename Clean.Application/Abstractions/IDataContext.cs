@@ -17,7 +17,14 @@ public interface IDataContext
     public DbSet<Trip> Trips { get; set; }
     public DbSet<Vehicle> Vehicles { get; set; }
     public DbSet<VehicleType> VehicleTypes { get; set; }
+    
+    public DbSet<CachedLocation> CachedLocations { get; set; }
+    
+    public DbSet<GasPurchase> GasPurchases { get; set; }
+    
+    public DbSet<VehicleFuelAllocation> VehicleFuelAllocations { get; set; }
 
+    public DbSet<DriverPeriodState> DriverPeriodStates { get; set; }
     
     Task MigrateAsync();
     

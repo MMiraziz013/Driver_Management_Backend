@@ -72,7 +72,7 @@ public class VehicleRepository : IVehicleRepository
         }
 
         _context.Vehicles.Remove(existing);
-        var result = await _context.SaveChangesAsync();
+        var result = await _context.SaveChangesAsync(); 
         return result > 0;
     }
 }

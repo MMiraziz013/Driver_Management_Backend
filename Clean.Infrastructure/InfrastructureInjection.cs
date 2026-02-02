@@ -32,6 +32,7 @@ public static class InfrastructureInjection
         services.AddTransient<IDataSeeder, SeedAdminUser>();
         services.AddTransient<SeedDataInitializer>();
 
+        services.AddScoped<ICachedLocationRepository, CachedLocationRepository>();
 
         services.AddTransient<IUserRepository, UserRepository>();
         services.AddTransient<IDriverRepository, DriverRepository>();
@@ -40,6 +41,9 @@ public static class InfrastructureInjection
         services.AddTransient<IVehicleTypeRepository, VehicleTypeRepository>();
         services.AddTransient<IReportPeriodRepository, ReportPeriodRepository>();
         services.AddTransient<IServiceTypeRepository, ServiceTypeRepository>();
+        services.AddTransient<IGasPurchaseRepository, GasPurchaseRepository>();
+        services.AddTransient<IVehicleFuelAllocationRepository, VehicleFuelAllocationRepository>();
+        services.AddTransient<IDriverPeriodStateRepository, DriverPeriodStateRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         return services;
     }

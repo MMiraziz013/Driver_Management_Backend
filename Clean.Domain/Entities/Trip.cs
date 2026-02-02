@@ -4,12 +4,16 @@ public class Trip
 {
     public int Id { get; set; }
 
+    public string? ConfNumber { get; set; } = string.Empty;
+    
     public DateTime PickUpDate { get; set; }
     public TimeSpan GarageOutTime { get; set; }
     public TimeSpan GarageInTime { get; set; }
 
     public string CompanyName { get; set; } = string.Empty;
     public string RoutingDetails { get; set; } = string.Empty;
+    
+    public double? DistanceKm { get; set; } // Calculated distance in kilometers
 
     public int VehicleTypeId { get; set; }
     public VehicleType VehicleType { get; set; } = null!;
@@ -21,6 +25,14 @@ public class Trip
     public ReportPeriod ReportPeriod { get; set; } = null!;
 
     public bool IncludedInReport { get; set; } = true;
+    
+    public string? ImportedDriverName { get; set; }
+    
+    public string? ImportedVehiclePlate { get; set; }
+    
+    public bool CoordinatesResolved { get; set; } = true; // Track if coordinates were found
+
+    public string? PmtMethod { get; set; }
 
     public List<DriverAssignment> Assignments { get; set; } = new();
     

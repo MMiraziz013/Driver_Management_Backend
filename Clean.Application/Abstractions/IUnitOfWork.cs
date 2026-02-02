@@ -11,6 +11,13 @@ public interface IUnitOfWork : IDisposable
     IVehicleTypeRepository VehicleTypes { get; }
     IServiceTypeRepository ServiceTypes { get; }
     
+    ICachedLocationRepository CachedLocations { get; }
+    
+    // ===== NEW: Gas Management Repositories =====
+    IGasPurchaseRepository GasPurchases { get; }
+    IVehicleFuelAllocationRepository FuelAllocations { get; }
+    IDriverPeriodStateRepository DriverPeriodStates { get; } 
+    
     void RemoveRange<T>(IEnumerable<T> entities) where T : class;
     
     Task<int> CompleteAsync(); // Effectively SaveChangesAsync()

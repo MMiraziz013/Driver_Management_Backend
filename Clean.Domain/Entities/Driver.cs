@@ -28,10 +28,27 @@ public class Driver
 
     public int WeeklyWorkLimit { get; set; } = 5;
     public bool IsActive { get; set; } = true;
-
+    
+    public bool IsBackupDriver { get; set; } = false;
+    
+    public DateTime? LastTripEndTime { get; set; }
+    
+    public double CurrentWeekHoursWorked { get; set; }
+    
+    public DateTime? CurrentWeekStartDate { get; set; }
+    
+    public int ConsecutiveDaysWorked { get; set; }
+    
+    public DateTime? LastRestDay { get; set; }
+    
     public List<DriverVacation> Vacations { get; set; } = [];
     public List<DriverOffDay> OffDays { get; set; } = [];
     public List<DriverAssignment> Assignments { get; set; } = [];
+    
+    /// <summary>
+    /// Navigation property - historical states across periods
+    /// </summary>
+    public List<DriverPeriodState> PeriodStates { get; set; } = [];
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

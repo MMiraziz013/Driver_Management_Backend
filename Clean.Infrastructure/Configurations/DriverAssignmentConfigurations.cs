@@ -18,6 +18,8 @@ public class DriverAssignmentConfigurations : IEntityTypeConfiguration<DriverAss
             .HasMaxLength(50)
             .IsRequired();
 
+        builder.Property(a => a.ConfNumber).HasMaxLength(10);
+
         builder.Property(a => a.HasConflict)
             .HasDefaultValue(false);
 

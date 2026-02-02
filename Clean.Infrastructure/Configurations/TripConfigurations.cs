@@ -10,6 +10,8 @@ public class TripConfigurations : IEntityTypeConfiguration<Trip>
     {
         builder.ToTable("trips");
 
+        builder.Property(t => t.ConfNumber).HasMaxLength(10);
+        
         builder.Property(t => t.PickUpDate).IsRequired();
         builder.Property(t => t.GarageOutTime).IsRequired();
         builder.Property(t => t.GarageInTime).IsRequired();
@@ -34,10 +36,15 @@ public class TripConfigurations : IEntityTypeConfiguration<Trip>
             .HasForeignKey(t => t.ServiceTypeId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.Property(p => p.PmtMethod).HasMaxLength(100);
+
         builder.HasOne(t => t.ReportPeriod)
             .WithMany(rp => rp.Trips)
             .HasForeignKey(t => t.ReportPeriodId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Property(t => t.ImportedDriverName).HasMaxLength(150);
+        builder.Property(t => t.ImportedVehiclePlate).HasMaxLength(50);
 
         builder.HasMany(t => t.Assignments)
             .WithOne(a => a.Trip)

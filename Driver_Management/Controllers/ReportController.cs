@@ -74,4 +74,40 @@ public class ReportController : Controller
             return StatusCode(500, $"Internal server error: {ex.Message}");
         }
     }
+    
+    /// <summary>
+    /// Preview period finalization (both fuel and driver assignments).
+    /// </summary>
+    [HttpGet("periods/{periodId}/finalize/preview")]
+    public async Task<IActionResult> PreviewPeriodFinalization(int periodId)
+    {
+        var result = await _reportService.PreviewPeriodFinalizationAsync(periodId);
+        return StatusCode((int)result.StatusCode, result);
+    }
+
+    /// <summary>
+    /// Finalize an entire period - updates vehicle fuel levels and driver states
+    /// for use in the next period.
+    /// WARNING: This action affects future periods!
+    /// </summary>
+    [HttpPost("periods/{periodId}/finalize")]
+    public async Task<IActionResult> FinalizePeriod(int periodId)
+    {
+        // Could get userId from JWT claims if using authentication
+        string? userId = User?.Identity?.Name;
+    
+        var result = await _reportService.FinalizePeriodAsync(periodId, userId);
+        return StatusCode((int)result.StatusCode, result);
+    }
+
+    /// <summary>
+    /// Revert period finalization (unlock for corrections).
+    /// </summary>
+    [HttpPost("periods/{periodId}/finalize/revert")]
+    public async Task<IActionResult> RevertPeriodFinalization(int periodId)
+    {
+        var result = await _reportService.RevertPeriodFinalizationAsync(periodId);
+        return StatusCode((int)result.StatusCode, result);
+    }
+
 }

@@ -22,6 +22,36 @@ namespace ClassLibrary1.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Clean.Domain.Entities.CachedLocation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AddressName")
+                        .IsRequired()
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
+                    b.Property<DateTime>("CachedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double>("Latitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("Longitude")
+                        .HasColumnType("double precision");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AddressName")
+                        .IsUnique();
+
+                    b.ToTable("cached_locations", (string)null);
+                });
+
             modelBuilder.Entity("Clean.Domain.Entities.Driver", b =>
                 {
                     b.Property<int>("Id")
@@ -43,10 +73,19 @@ namespace ClassLibrary1.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)");
 
+                    b.Property<int>("ConsecutiveDaysWorked")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("NOW()");
+
+                    b.Property<double>("CurrentWeekHoursWorked")
+                        .HasColumnType("double precision");
+
+                    b.Property<DateTime?>("CurrentWeekStartDate")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("EmploymentType")
                         .IsRequired()
@@ -62,6 +101,15 @@ namespace ClassLibrary1.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(true);
+
+                    b.Property<bool>("IsBackupDriver")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastRestDay")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastTripEndTime")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
@@ -90,6 +138,10 @@ namespace ClassLibrary1.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ConfNumber")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
 
                     b.Property<int?>("DriverId")
                         .HasColumnType("integer");
@@ -143,6 +195,59 @@ namespace ClassLibrary1.Migrations
                     b.HasIndex("DriverId");
 
                     b.ToTable("driver_off_days", (string)null);
+                });
+
+            modelBuilder.Entity("Clean.Domain.Entities.DriverPeriodState", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ConsecutiveDaysWorked")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DriverId")
+                        .HasColumnType("integer");
+
+                    b.Property<double>("IncompleteWeekHoursWorked")
+                        .HasColumnType("double precision");
+
+                    b.Property<DateTime?>("IncompleteWeekStartDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastRestDay")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastTripEndLocation")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("LastTripEndTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ReportPeriodId")
+                        .HasColumnType("integer");
+
+                    b.Property<double>("TotalPeriodHoursWorked")
+                        .HasColumnType("double precision");
+
+                    b.Property<int>("TotalPeriodTrips")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DriverId");
+
+                    b.HasIndex("ReportPeriodId");
+
+                    b.HasIndex("DriverId", "ReportPeriodId")
+                        .IsUnique();
+
+                    b.ToTable("driver_period_states", (string)null);
                 });
 
             modelBuilder.Entity("Clean.Domain.Entities.DriverVacation", b =>
@@ -235,6 +340,62 @@ namespace ClassLibrary1.Migrations
                     b.ToTable("filters", (string)null);
                 });
 
+            modelBuilder.Entity("Clean.Domain.Entities.GasPurchase", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<double>("AllocatedLiters")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("double precision")
+                        .HasDefaultValue(0.0);
+
+                    b.Property<decimal>("AmountUzs")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<string>("FuelType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<double>("LitersAmount")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("PurchaseDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ReportPeriodId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FuelType");
+
+                    b.HasIndex("PurchaseDate");
+
+                    b.HasIndex("ReportPeriodId");
+
+                    b.ToTable("gas_purchases", (string)null);
+                });
+
             modelBuilder.Entity("Clean.Domain.Entities.ReportPeriod", b =>
                 {
                     b.Property<int>("Id")
@@ -243,11 +404,20 @@ namespace ClassLibrary1.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime?>("AssignmentFinalizedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Description")
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
                     b.Property<DateTime>("EndDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("FinalizedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("FuelFinalizedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("GeneratedAt")
@@ -259,6 +429,15 @@ namespace ClassLibrary1.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
+                    b.Property<bool>("IsAssignmentFinalized")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsFinalized")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsFuelFinalized")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("timestamp with time zone");
 
@@ -266,6 +445,9 @@ namespace ClassLibrary1.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
@@ -307,11 +489,29 @@ namespace ClassLibrary1.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
+                    b.Property<string>("ConfNumber")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<bool>("CoordinatesResolved")
+                        .HasColumnType("boolean");
+
+                    b.Property<double?>("DistanceKm")
+                        .HasColumnType("double precision");
+
                     b.Property<TimeSpan>("GarageInTime")
                         .HasColumnType("interval");
 
                     b.Property<TimeSpan>("GarageOutTime")
                         .HasColumnType("interval");
+
+                    b.Property<string>("ImportedDriverName")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("ImportedVehiclePlate")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
                     b.Property<bool>("IncludedInReport")
                         .ValueGeneratedOnAdd()
@@ -320,6 +520,10 @@ namespace ClassLibrary1.Migrations
 
                     b.Property<DateTime>("PickUpDate")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PmtMethod")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<int>("ReportPeriodId")
                         .HasColumnType("integer");
@@ -450,6 +654,28 @@ namespace ClassLibrary1.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("NOW()");
 
+                    b.Property<double>("FuelConsumptionPer100Km")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("double precision")
+                        .HasDefaultValue(0.0);
+
+                    b.Property<double>("FuelTankCapacity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("double precision")
+                        .HasDefaultValue(0.0);
+
+                    b.Property<string>("FuelType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("");
+
+                    b.Property<double>("InitialFuelLevel")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("double precision")
+                        .HasDefaultValue(0.0);
+
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -482,6 +708,70 @@ namespace ClassLibrary1.Migrations
                     b.HasIndex("VehicleTypeId");
 
                     b.ToTable("vehicles", (string)null);
+                });
+
+            modelBuilder.Entity("Clean.Domain.Entities.VehicleFuelAllocation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("AllocationCostUzs")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime>("AllocationDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<int>("GasPurchaseId")
+                        .HasColumnType("integer");
+
+                    b.Property<double>("LitersAllocated")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("ReportPeriodId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("TripId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<int>("VehicleId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GasPurchaseId");
+
+                    b.HasIndex("ReportPeriodId");
+
+                    b.HasIndex("TripId");
+
+                    b.HasIndex("VehicleId");
+
+                    b.HasIndex("VehicleId", "ReportPeriodId");
+
+                    b.ToTable("vehicle_fuel_allocations", (string)null);
                 });
 
             modelBuilder.Entity("Clean.Domain.Entities.VehicleType", b =>
@@ -677,6 +967,25 @@ namespace ClassLibrary1.Migrations
                     b.Navigation("Driver");
                 });
 
+            modelBuilder.Entity("Clean.Domain.Entities.DriverPeriodState", b =>
+                {
+                    b.HasOne("Clean.Domain.Entities.Driver", "Driver")
+                        .WithMany("PeriodStates")
+                        .HasForeignKey("DriverId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Clean.Domain.Entities.ReportPeriod", "ReportPeriod")
+                        .WithMany("DriverPeriodStates")
+                        .HasForeignKey("ReportPeriodId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Driver");
+
+                    b.Navigation("ReportPeriod");
+                });
+
             modelBuilder.Entity("Clean.Domain.Entities.DriverVacation", b =>
                 {
                     b.HasOne("Clean.Domain.Entities.Driver", "Driver")
@@ -686,6 +995,17 @@ namespace ClassLibrary1.Migrations
                         .IsRequired();
 
                     b.Navigation("Driver");
+                });
+
+            modelBuilder.Entity("Clean.Domain.Entities.GasPurchase", b =>
+                {
+                    b.HasOne("Clean.Domain.Entities.ReportPeriod", "ReportPeriod")
+                        .WithMany()
+                        .HasForeignKey("ReportPeriodId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ReportPeriod");
                 });
 
             modelBuilder.Entity("Clean.Domain.Entities.Trip", b =>
@@ -724,6 +1044,40 @@ namespace ClassLibrary1.Migrations
                         .IsRequired();
 
                     b.Navigation("VehicleType");
+                });
+
+            modelBuilder.Entity("Clean.Domain.Entities.VehicleFuelAllocation", b =>
+                {
+                    b.HasOne("Clean.Domain.Entities.GasPurchase", "GasPurchase")
+                        .WithMany("Allocations")
+                        .HasForeignKey("GasPurchaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Clean.Domain.Entities.ReportPeriod", "ReportPeriod")
+                        .WithMany()
+                        .HasForeignKey("ReportPeriodId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Clean.Domain.Entities.Trip", "Trip")
+                        .WithMany()
+                        .HasForeignKey("TripId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Clean.Domain.Entities.Vehicle", "Vehicle")
+                        .WithMany("FuelAllocations")
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("GasPurchase");
+
+                    b.Navigation("ReportPeriod");
+
+                    b.Navigation("Trip");
+
+                    b.Navigation("Vehicle");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<int>", b =>
@@ -783,11 +1137,20 @@ namespace ClassLibrary1.Migrations
 
                     b.Navigation("OffDays");
 
+                    b.Navigation("PeriodStates");
+
                     b.Navigation("Vacations");
+                });
+
+            modelBuilder.Entity("Clean.Domain.Entities.GasPurchase", b =>
+                {
+                    b.Navigation("Allocations");
                 });
 
             modelBuilder.Entity("Clean.Domain.Entities.ReportPeriod", b =>
                 {
+                    b.Navigation("DriverPeriodStates");
+
                     b.Navigation("Trips");
                 });
 
@@ -804,6 +1167,8 @@ namespace ClassLibrary1.Migrations
             modelBuilder.Entity("Clean.Domain.Entities.Vehicle", b =>
                 {
                     b.Navigation("Assignments");
+
+                    b.Navigation("FuelAllocations");
                 });
 
             modelBuilder.Entity("Clean.Domain.Entities.VehicleType", b =>

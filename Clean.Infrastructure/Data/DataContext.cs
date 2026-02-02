@@ -27,6 +27,15 @@ public class DataContext : IdentityDbContext<User, IdentityRole<int>, int>, IDat
     public DbSet<Trip> Trips { get; set; }
     public DbSet<Vehicle> Vehicles { get; set; }
     public DbSet<VehicleType> VehicleTypes { get; set; }
+    
+    public DbSet<CachedLocation> CachedLocations { get; set; }
+    
+    public DbSet<GasPurchase> GasPurchases { get; set; }
+    
+    public DbSet<VehicleFuelAllocation> VehicleFuelAllocations { get; set; }
+
+    public DbSet<DriverPeriodState> DriverPeriodStates { get; set; }
+
 
     public async Task MigrateAsync()
     {
@@ -47,5 +56,9 @@ public class DataContext : IdentityDbContext<User, IdentityRole<int>, int>, IDat
         builder.ApplyConfigurationsFromAssembly(typeof(TripConfigurations).Assembly);
         builder.ApplyConfigurationsFromAssembly(typeof(VehicleConfigurations).Assembly);
         builder.ApplyConfigurationsFromAssembly(typeof(VehicleTypeConfigurations).Assembly);
+        builder.ApplyConfigurationsFromAssembly(typeof(CachedLocationConfigurations).Assembly);
+        builder.ApplyConfigurationsFromAssembly(typeof(VehicleFuelAllocationConfigurations).Assembly);
+        builder.ApplyConfigurationsFromAssembly(typeof(GasPurchaseConfigurations).Assembly);
+        builder.ApplyConfigurationsFromAssembly(typeof(DriverPeriodStateConfiguration).Assembly);
     }
 }

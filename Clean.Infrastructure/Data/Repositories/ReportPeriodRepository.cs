@@ -46,7 +46,9 @@ public class ReportPeriodRepository : IReportPeriodRepository
     {
         return await _context.ReportPeriods
             .Include(p => p.Trips)
-            .ThenInclude(t => t.VehicleType)
+                .ThenInclude(t => t.VehicleType)
+            .Include(p=> p.Trips)
+                .ThenInclude(t=> t.ServiceType)
             .FirstOrDefaultAsync(p => p.Id == id);
     }
 
@@ -61,6 +63,8 @@ public class ReportPeriodRepository : IReportPeriodRepository
                     .ThenInclude(a => a.Vehicle)
             .Include(p=> p.Trips)
                 .ThenInclude(t=> t.ServiceType)
+            .Include(p=> p.Trips)
+                .ThenInclude(t=> t.VehicleType)
             .FirstOrDefaultAsync(p => p.Id == id);
     }
 }

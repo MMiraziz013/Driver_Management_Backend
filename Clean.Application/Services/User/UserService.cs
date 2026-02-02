@@ -32,18 +32,27 @@ public class UserService : IUserService
     
     public async Task<Response<string>> RegisterUserAsync(RegisterUserDto register)
     {
-        var existing = await _userManager.FindByEmailAsync(register.Email);
-        if (existing != null)
+        // Check if email already exists
+        var existingEmail = await _userManager.FindByEmailAsync(register.Email);
+        if (existingEmail != null)
         {
             return new Response<string>("A user with this email already exists.");
+        }
+    
+        // Check if username already exists
+        var existingUsername = await _userManager.FindByNameAsync(register.Username);
+        if (existingUsername != null)
+        {
+            return new Response<string>("A user with this username already exists.");
         }
 
         var user = new Domain.Entities.User
         {
-            UserName = register.Email,
+            UserName = register.Username,  // ← FIX: Use Username, not Email!
             Email = register.Email,
             FirstName = register.FirstName,
             LastName = register.LastName,
+            PhoneNumber = register.Phone,  // ← Also save phone number
             Role = UserRole.Employee,
             IsActive = true
         };
