@@ -159,4 +159,26 @@ public class VehicleService : IVehicleService
         {
             return new Response<List<Domain.Entities.Vehicle>>(HttpStatusCode.InternalServerError, new List<string> { ex.Message });
         }
-    }}
+    }
+
+    public async Task<Response<bool>> ChangeStatusAsync(int id)
+    {
+        try
+        {
+            var isDeactivated = await _uow.Vehicles.ChangeStatus(id);
+            if (isDeactivated == false)
+            {
+                return new Response<bool>(HttpStatusCode.BadRequest,
+                    "Failed to deactivate the vehicle, or vehicle not found");
+            }
+
+            return new Response<bool>(HttpStatusCode.OK, isDeactivated);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+    }
+    
+}

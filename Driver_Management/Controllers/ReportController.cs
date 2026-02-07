@@ -1,4 +1,5 @@
 using Clean.Application.Abstractions;
+using Clean.Application.Dtos.Report;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -109,5 +110,74 @@ public class ReportController : Controller
         var result = await _reportService.RevertPeriodFinalizationAsync(periodId);
         return StatusCode((int)result.StatusCode, result);
     }
+    
+    /// <summary>
+    /// Export waybill report (Путевой лист) with grouped journeys
+    /// </summary>
+    [HttpGet("export-waybill/{periodId}")]
+    public async Task<IActionResult> ExportWaybillReport(int periodId)
+    {
+        var bytes = await _reportService.GetWaybillReportAsync(periodId);
+        
+        if (bytes.Data != null && bytes.Data.Length == 0)
+        {
+            return NotFound("Period not found or has no data");
+        }
+        
+        var period = await _reportService.GetAllPeriods();
+        var periodInfo = period.Data?.FirstOrDefault(p => p.Id == periodId);
+        var fileName = periodInfo != null 
+            ? $"Путевой_лист_{periodInfo.StartDate:yyyy-MM-dd}_{periodInfo.EndDate:yyyy-MM-dd}.xlsx"
+            : $"Путевой_лист_{periodId}.xlsx";
+        
+        return File(bytes.Data!, 
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+            fileName);
+    }
 
+    /// <summary>
+    /// Get journeys (grouped trips) for a period
+    /// </summary>
+    [HttpGet("journeys/{periodId}")]
+    public async Task<ActionResult<List<JourneyDto>>> GetJourneys(int periodId)
+    {
+        var journeys = await _reportService.GetAllJourneysAsync(periodId);
+        return Ok(journeys);
+    }
+
+    /// <summary>
+    /// Update vehicle mileage
+    /// </summary>
+    [HttpPut("vehicle/{vehicleId}/mileage")]
+    public async Task<IActionResult> UpdateVehicleMileage(int vehicleId, [FromBody] UpdateMileageRequest request)
+    {
+        var result = await _reportService.UpdateVehicleMileageAsync(vehicleId, request.NewMileage);
+        
+        if (result.StatusCode == (int)System.Net.HttpStatusCode.OK)
+        {
+            return Ok(new { message = result.Message });
+        }
+        
+        return StatusCode((int)result.StatusCode, new { message = result.Message });
+    }
+
+    /// <summary>
+    /// Bulk update vehicle mileages
+    /// </summary>
+    [HttpPut("vehicles/mileage/bulk")]
+    public async Task<IActionResult> BulkUpdateVehicleMileages([FromBody] BulkMileageUpdateRequest request)
+    {
+        var updates = request.Updates
+            .Select(u => (u.VehicleId, u.NewMileage))
+            .ToList();
+        
+        var result = await _reportService.BulkUpdateVehicleMileagesAsync(updates);
+        
+        if (result.StatusCode == (int)System.Net.HttpStatusCode.OK)
+        {
+            return Ok(new { message = result.Message });
+        }
+        
+        return StatusCode((int)result.StatusCode, new { message = result.Message });
+    }
 }

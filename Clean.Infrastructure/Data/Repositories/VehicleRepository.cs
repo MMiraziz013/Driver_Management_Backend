@@ -19,6 +19,7 @@ public class VehicleRepository : IVehicleRepository
             .Include(v => v.Assignments)
             .ThenInclude(a => a.Trip)
             .Include(v => v.VehicleType) // Added this to ensure type names are available
+            .Where(v=> v.IsActive)
             .ToListAsync();
     }
     
@@ -73,6 +74,27 @@ public class VehicleRepository : IVehicleRepository
 
         _context.Vehicles.Remove(existing);
         var result = await _context.SaveChangesAsync(); 
+        return result > 0;
+    }
+
+    public async Task<bool> ChangeStatus(int id)
+    {
+        var existing = await _context.Vehicles.FindAsync(id);
+        if (existing == null)
+        {
+            return false;
+        }
+
+        if (existing.IsActive)
+        {
+            existing.IsActive = false;
+        }
+        else
+        {
+            existing.IsActive = true;
+        }
+
+        var result = await _context.SaveChangesAsync();
         return result > 0;
     }
 }

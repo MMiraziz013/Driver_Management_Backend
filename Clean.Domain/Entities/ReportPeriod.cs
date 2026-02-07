@@ -27,6 +27,21 @@ public class ReportPeriod
     
     public DateTime? AssignmentFinalizedAt { get; set; }
     
+    /// <summary>
+    /// Whether mileage has been finalized for this period
+    /// </summary>
+    public bool IsMileageFinalized { get; set; }
+
+    /// <summary>
+    /// When mileage was finalized
+    /// </summary>
+    public DateTime? MileageFinalizedAt { get; set; }
+
+    /// <summary>
+    /// Who finalized the period (user ID or name)
+    /// </summary>
+    public string? FinalizedBy { get; set; }
+    
     public ReportStatus Status { get; set; }
 
     public List<Trip> Trips { get; set; } = [];

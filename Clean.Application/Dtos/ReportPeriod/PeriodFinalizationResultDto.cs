@@ -1,5 +1,6 @@
 using Clean.Application.Dtos.Driver;
 using Clean.Application.Dtos.Fuel;
+using Clean.Application.Services.Report.Finalization;
 
 namespace Clean.Application.Dtos.ReportPeriod;
 
@@ -26,6 +27,12 @@ public class PeriodFinalizationResultDto
 
     // Driver finalization results  
     public DriverFinalizationSummary? DriverSummary { get; set; }
+    
+    /// <summary>
+    /// Vehicle mileage finalization summary
+    /// </summary>
+    public MileageFinalizationSummary? MileageSummary { get; set; }
+
 
     public List<string> Warnings { get; set; } = [];
     public List<string> Errors { get; set; } = [];

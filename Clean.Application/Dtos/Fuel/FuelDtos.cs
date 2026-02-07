@@ -43,10 +43,10 @@ public class GasPurchaseSummaryDto
 {
     public int ReportPeriodId { get; set; }
     public int TotalPurchases { get; set; }
-    public double TotalLitersPurchased { get; set; }
+    public double TotalLiters { get; set; }
     public decimal TotalAmountUzs { get; set; }
-    public double TotalLitersAllocated { get; set; }
-    public double TotalLitersRemaining { get; set; }
+    public double AllocatedLiters { get; set; }
+    public double RemainingLiters { get; set; }
     public List<FuelTypeSummaryDto> ByFuelType { get; set; } = [];
     public List<string> Messages { get; set; } = [];
 }
@@ -58,6 +58,8 @@ public class FuelTypeSummaryDto
 {
     public string FuelType { get; set; } = string.Empty;
     public int PurchaseCount { get; set; }
+
+    public string GenericFuelType { get; set; }
     public double TotalLiters { get; set; }
     public decimal TotalAmountUzs { get; set; }
     public decimal AveragePricePerLiter { get; set; }
@@ -74,6 +76,9 @@ public class GasPurchaseDto
     public DateTime PurchaseDate { get; set; }
     public double LitersAmount { get; set; }
     public string FuelType { get; set; } = string.Empty;
+    
+    public string SpecificFuelType { get; set; } = string.Empty; // Specific: "АИ-92"
+
     public decimal AmountUzs { get; set; }
     public decimal PricePerLiter { get; set; }
     public double AllocatedLiters { get; set; }

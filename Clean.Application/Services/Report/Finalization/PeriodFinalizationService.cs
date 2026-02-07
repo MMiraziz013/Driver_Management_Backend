@@ -7,23 +7,25 @@ namespace Clean.Application.Services.Report.Finalization;
 
 /// <summary>
 /// Orchestrates the complete period finalization process,
-/// including both fuel and driver state finalization.
+/// including fuel, driver state, and mileage finalization.
 /// </summary>
 public class PeriodFinalizationService
 {
     private readonly IUnitOfWork _uow;
     private readonly FuelFinalizationService _fuelService;
     private readonly DriverFinalizationService _driverService;
+    private readonly MileageFinalizationService _mileageService;
 
     public PeriodFinalizationService(IUnitOfWork uow)
     {
         _uow = uow;
         _fuelService = new FuelFinalizationService();
         _driverService = new DriverFinalizationService();
+        _mileageService = new MileageFinalizationService();
     }
 
     /// <summary>
-    /// Finalize an entire period - both fuel allocation and driver assignments.
+    /// Finalize an entire period - fuel allocation, driver assignments, and vehicle mileage.
     /// </summary>
     public async Task<Response<PeriodFinalizationResultDto>> FinalizePeriodAsync(int periodId, string? userId = null)
     {
@@ -76,24 +78,40 @@ public class PeriodFinalizationService
                 result.Warnings.Add($"{result.DriverSummary.DriversWithWarnings} driver(s) have warnings (hours/rest)");
             }
 
-            // ===== 3. MARK PERIOD AS FINALIZED =====
+            // ===== 3. FINALIZE VEHICLE MILEAGE =====
+            Console.WriteLine($"\n=== FINALIZING MILEAGE FOR PERIOD {periodId} ===");
+            result.MileageSummary = _mileageService.FinalizeMileage(period, vehicles);
+
+            if (result.MileageSummary.VehiclesWithDiscrepancy > 0)
+            {
+                result.Warnings.Add($"{result.MileageSummary.VehiclesWithDiscrepancy} vehicle(s) have trips without distance data");
+            }
+
+            // ===== 4. MARK PERIOD AS FINALIZED =====
             period.IsFinalized = true;
             period.FinalizedAt = DateTime.UtcNow;
+            period.FinalizedBy = userId;
             period.IsFuelFinalized = true;
             period.FuelFinalizedAt = DateTime.UtcNow;
             period.IsAssignmentFinalized = true;
             period.AssignmentFinalizedAt = DateTime.UtcNow;
+            period.IsMileageFinalized = true;
+            period.MileageFinalizedAt = DateTime.UtcNow;
             period.UpdatedAt = DateTime.UtcNow;
 
             await _uow.CompleteAsync();
 
             result.Success = true;
             result.Message = $"Period finalized successfully. " +
-                            $"{result.FuelSummary.VehiclesUpdated} vehicles and {result.DriverSummary.DriversUpdated} drivers updated.";
+                            $"{result.FuelSummary.VehiclesUpdated} vehicles (fuel), " +
+                            $"{result.MileageSummary.VehiclesUpdated} vehicles (mileage), " +
+                            $"{result.DriverSummary.DriversUpdated} drivers updated.";
 
             Console.WriteLine($"\n{'=',-60}");
             Console.WriteLine($"=== PERIOD {periodId} FULLY FINALIZED ===");
-            Console.WriteLine($"Vehicles updated: {result.FuelSummary.VehiclesUpdated}");
+            Console.WriteLine($"Vehicles updated (fuel): {result.FuelSummary.VehiclesUpdated}");
+            Console.WriteLine($"Vehicles updated (mileage): {result.MileageSummary.VehiclesUpdated}");
+            Console.WriteLine($"Total distance driven: {result.MileageSummary.TotalDistanceDriven:N1} km");
             Console.WriteLine($"Drivers updated: {result.DriverSummary.DriversUpdated}");
             Console.WriteLine($"{'=',-60}\n");
 
@@ -150,6 +168,9 @@ public class PeriodFinalizationService
             // Preview driver finalization (doesn't save)
             result.DriverSummary = _driverService.PreviewDriverFinalization(period, drivers);
 
+            // Preview mileage finalization (doesn't save)
+            result.MileageSummary = _mileageService.PreviewMileageFinalization(period, vehicles);
+
             // Collect warnings
             if (result.FuelSummary.VehiclesWithDeficit > 0)
             {
@@ -158,6 +179,10 @@ public class PeriodFinalizationService
             if (result.DriverSummary.DriversWithWarnings > 0)
             {
                 result.Warnings.Add($"{result.DriverSummary.DriversWithWarnings} driver(s) have hour/rest warnings");
+            }
+            if (result.MileageSummary.VehiclesWithDiscrepancy > 0)
+            {
+                result.Warnings.Add($"{result.MileageSummary.VehiclesWithDiscrepancy} vehicle(s) have trips without distance data");
             }
 
             // Check for missing data
@@ -212,17 +237,20 @@ public class PeriodFinalizationService
             // Unlock the period
             period.IsFinalized = false;
             period.FinalizedAt = null;
+            period.FinalizedBy = null;
             period.IsFuelFinalized = false;
             period.FuelFinalizedAt = null;
             period.IsAssignmentFinalized = false;
             period.AssignmentFinalizedAt = null;
+            period.IsMileageFinalized = false;
+            period.MileageFinalizedAt = null;
             period.UpdatedAt = DateTime.UtcNow;
 
             await _uow.CompleteAsync();
 
             return new Response<string>(
                 HttpStatusCode.OK,
-                "Period finalization reverted. Note: Vehicle fuel levels and driver states may need manual correction."
+                "Period finalization reverted. Note: Vehicle fuel levels, mileage, and driver states may need manual correction."
             );
         }
         catch (Exception ex)

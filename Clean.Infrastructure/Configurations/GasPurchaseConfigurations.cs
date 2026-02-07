@@ -22,6 +22,10 @@ public class GasPurchaseConfigurations : IEntityTypeConfiguration<GasPurchase>
             .HasMaxLength(20)
             .IsRequired();
 
+        builder.Property(g => g.SpecificFuelType)
+            .HasMaxLength(20)
+            .IsRequired();
+
         builder.Property(g => g.AmountUzs)
             .HasPrecision(18, 2)
             .IsRequired();

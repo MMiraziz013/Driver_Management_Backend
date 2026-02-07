@@ -5,6 +5,7 @@ using System.Text;
 using Clean.Application.Abstractions;
 using Clean.Application.Dtos.Fuel;
 using Clean.Application.Dtos.Responses;
+using Clean.Application.Services.Report.Finalization;
 using Clean.Domain.Entities;
 using Clean.Domain.Enums;
 using ClosedXML.Excel;
@@ -37,7 +38,7 @@ public class GasService : IGasService
 
     #region Gas Purchase Management
 
-    public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IFormFile file, int periodId)
+public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IFormFile file, int periodId)
     {
         try
         {
@@ -77,7 +78,7 @@ public class GasService : IGasService
                 rowNumber++;
                 try
                 {
-                    // Parse Date - updated column names
+                    // Parse Date
                     var dateStr = row.Дата?.ToString() ?? row.Date?.ToString();
 
                     if (string.IsNullOrWhiteSpace(dateStr))
@@ -86,15 +87,13 @@ public class GasService : IGasService
                         continue;
                     }
 
-                    // 2. Parse the string into a DateTime object
-                    // Use TryParse to handle different Excel date formats safely
                     if (!DateTime.TryParse(dateStr, out DateTime parsedDate))
                     {
                         errors.Add($"Row {rowNumber}: Invalid date format '{dateStr}'");
                         continue;
                     }
 
-                    // Parse Gas (liters) - updated column names
+                    // Parse Gas (liters)
                     double liters = 0.0;
                     var gasValue = row.литр?.ToString() ?? row.Литр?.ToString() ?? row.Liters?.ToString() ?? row.Gas?.ToString();
                     if (string.IsNullOrWhiteSpace(gasValue) || !double.TryParse(gasValue.Replace(",", "."),
@@ -104,17 +103,23 @@ public class GasService : IGasService
                         continue;
                     }
 
-                    // Parse Fuel Type - updated column names
-                    var fuelType = NormalizeFuelType(
-                        row.марка?.ToString() ?? row.Марка?.ToString() ?? row.Type?.ToString() ?? row.Тип?.ToString() ?? ""
-                    );
-                    if (string.IsNullOrWhiteSpace(fuelType))
+                    // Parse Fuel Type - GET THE ORIGINAL VALUE
+                    var rawFuelType = row.марка?.ToString() ?? row.Марка?.ToString() ?? 
+                                      row.Type?.ToString() ?? row.Тип?.ToString() ?? "";
+                    
+                    if (string.IsNullOrWhiteSpace(rawFuelType))
                     {
                         errors.Add($"Row {rowNumber}: Invalid or missing fuel type");
                         continue;
                     }
 
-                    // Parse Amount (UZS) - updated column names
+                    // ========================================================
+                    // KEY CHANGE: Store BOTH specific and generic fuel types
+                    // ========================================================
+                    var specificFuelType = FuelTypeHelper.NormalizeSpecificFuelType(rawFuelType);
+                    var genericFuelType = FuelTypeHelper.GetGenericFuelType(rawFuelType);
+
+                    // Parse Amount (UZS)
                     decimal amount = 0m;
                     var amountValue = row.Сумма?.ToString() ?? row.сумма?.ToString() ?? row.Amount?.ToString();
                     if (string.IsNullOrWhiteSpace(amountValue) ||
@@ -129,7 +134,8 @@ public class GasService : IGasService
                         ReportPeriodId = periodId,
                         PurchaseDate = DateTime.SpecifyKind(parsedDate, DateTimeKind.Utc),
                         LitersAmount = liters,
-                        FuelType = fuelType,
+                        SpecificFuelType = specificFuelType,  // "АИ-92", "АИ-95", "ДТ" - for REPORTING
+                        FuelType = genericFuelType,            // "Gasoline/АИ", "Diesel/ДТ" - for ALLOCATION
                         AmountUzs = amount,
                         AllocatedLiters = 0,
                         CreatedAt = DateTime.UtcNow,
@@ -163,7 +169,8 @@ public class GasService : IGasService
             }
 
             Console.WriteLine($"✓ Uploaded {newPurchases.Count} gas purchases for period {periodId}");
-            return new Response<GasPurchaseSummaryDto>(HttpStatusCode.OK, "Successfully uploaded {newPurchases.Count} gas purchase records", summary);
+            return new Response<GasPurchaseSummaryDto>(HttpStatusCode.OK, 
+                $"Successfully uploaded {newPurchases.Count} gas purchase records", summary);
         }
         catch (Exception ex)
         {
@@ -184,7 +191,8 @@ public class GasService : IGasService
                 Id = g.Id,
                 PurchaseDate = g.PurchaseDate,
                 LitersAmount = g.LitersAmount,
-                FuelType = g.FuelType,
+                FuelType = g.FuelType,                       // Generic type for allocation info
+                SpecificFuelType = g.SpecificFuelType,       // Specific type for display
                 AmountUzs = g.AmountUzs,
                 PricePerLiter = g.PricePerLiter,
                 AllocatedLiters = g.AllocatedLiters,
@@ -198,9 +206,10 @@ public class GasService : IGasService
         catch (Exception ex)
         {
             return new Response<List<GasPurchaseDto>>(HttpStatusCode.InternalServerError,
-                new List<string> { ex.Message });
+                [ex.Message]);
         }
     }
+
 
     public async Task<Response<GasPurchaseSummaryDto>> GetGasPurchaseSummaryAsync(int periodId)
     {
@@ -2301,33 +2310,41 @@ public class GasService : IGasService
         return DateTime.TryParse(value, out result);
     }
 
-    private GasPurchaseSummaryDto BuildPurchaseSummary(int periodId, List<GasPurchase> purchases)
+    /// <summary>
+    /// Build purchase summary with SPECIFIC fuel type breakdown for reporting
+    /// </summary>
+    private GasPurchaseSummaryDto BuildPurchaseSummary(int periodId, IEnumerable<GasPurchase> purchases)
     {
-        var byFuelType = purchases
-            .GroupBy(p => p.FuelType)
+        var purchaseList = purchases.ToList();
+        
+        // Group by SPECIFIC fuel type for detailed reporting
+        var bySpecificType = purchaseList
+            .GroupBy(p => p.SpecificFuelType ?? p.FuelType) // Fallback to FuelType if SpecificFuelType is null
             .Select(g => new FuelTypeSummaryDto
             {
                 FuelType = g.Key,
+                GenericFuelType = FuelTypeHelper.GetGenericFuelType(g.Key),
                 PurchaseCount = g.Count(),
                 TotalLiters = g.Sum(p => p.LitersAmount),
                 TotalAmountUzs = g.Sum(p => p.AmountUzs),
-                AveragePricePerLiter = g.Sum(p => p.LitersAmount) > 0
-                    ? Math.Round(g.Sum(p => p.AmountUzs) / (decimal)g.Sum(p => p.LitersAmount), 2)
-                    : 0,
+                AveragePricePerLiter = g.Any() ? g.Average(p => p.PricePerLiter) : 0,
                 AllocatedLiters = g.Sum(p => p.AllocatedLiters),
-                RemainingLiters = g.Sum(p => p.LitersAmount - p.AllocatedLiters)
+                RemainingLiters = g.Sum(p => p.RemainingLiters)
             })
+            .OrderBy(f => f.GenericFuelType)
+            .ThenBy(f => f.FuelType)
             .ToList();
 
         return new GasPurchaseSummaryDto
         {
             ReportPeriodId = periodId,
-            TotalPurchases = purchases.Count,
-            TotalLitersPurchased = purchases.Sum(p => p.LitersAmount),
-            TotalAmountUzs = purchases.Sum(p => p.AmountUzs),
-            TotalLitersAllocated = purchases.Sum(p => p.AllocatedLiters),
-            TotalLitersRemaining = purchases.Sum(p => p.LitersAmount - p.AllocatedLiters),
-            ByFuelType = byFuelType
+            TotalPurchases = purchaseList.Count,
+            TotalLiters = purchaseList.Sum(p => p.LitersAmount),
+            TotalAmountUzs = purchaseList.Sum(p => p.AmountUzs),
+            AllocatedLiters = purchaseList.Sum(p => p.AllocatedLiters),
+            RemainingLiters = purchaseList.Sum(p => p.RemainingLiters),
+            ByFuelType = bySpecificType,
+            Messages = new List<string>()
         };
     }
 

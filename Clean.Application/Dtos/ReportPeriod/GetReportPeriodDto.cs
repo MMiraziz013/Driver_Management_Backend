@@ -49,5 +49,11 @@ public class GetReportPeriodDto
     /// When driver assignments were finalized
     /// </summary>
     public DateTime? AssignmentFinalizedAt { get; set; }
+    
+    public bool IsMileageFinalized { get; set; }
+    
+    public DateTime? MileageFinalizedAt { get; set; }
+    
+    public string? FinalizedBy { get; set; }
 
 }

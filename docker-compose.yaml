@@ -1,0 +1,51 @@
+services:
+  api:
+    image: mmirvaliyev/driver_management_api:latest
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: driver_management_api
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Server=db;Port=5432;Database=driver_management_db;User Id=postgres;Password=${POSTGRES_PASSWORD}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - JWT__Key=${JWT_KEY}
+      - JWT__Issuer=DriverManagement
+      - JWT__Audience=DriverManagementUsers
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - driver-management-network
+    restart: unless-stopped
+
+  db:
+    image: postgres:17-alpine
+    container_name: driver-management-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=driver_management_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - driver-management-postgresql-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - driver-management-network
+
+networks:
+  driver-management-network:
+    driver: bridge
+
+volumes:
+  driver-management-postgresql-data:

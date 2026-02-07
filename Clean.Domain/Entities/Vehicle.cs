@@ -38,6 +38,10 @@ public class Vehicle
     /// Used as baseline for calculations
     /// </summary>
     public double InitialFuelLevel { get; set; }
+    
+    public double CurrentMileage { get; set; }
+    
+    public DateTime? MileageUpdatedAt { get; set; }
 
     public List<DriverAssignment> Assignments { get; set; } = [];
     public List<VehicleFuelAllocation> FuelAllocations { get; set; } = [];

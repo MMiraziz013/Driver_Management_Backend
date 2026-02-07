@@ -15,6 +15,7 @@ public class ReportPeriodConfigurations : IEntityTypeConfiguration<ReportPeriod>
         builder.Property(rp => rp.Description).HasMaxLength(300);
         builder.Property(rp => rp.GeneratedAt).HasDefaultValueSql("NOW()");
         builder.Property(rp => rp.GeneratedBy).HasMaxLength(150);
+        builder.Property(rp => rp.FinalizedBy).HasMaxLength(150);
 
         builder.Property(rp => rp.Status)
             .HasConversion<string>()

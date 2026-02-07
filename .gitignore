@@ -484,3 +484,6 @@ $RECYCLE.BIN/
 *.swp
 
 /frontend
+*.env
+*.env.local
+*.env.production

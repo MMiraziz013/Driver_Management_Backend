@@ -3,6 +3,7 @@ using System;
 using ClassLibrary1.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ClassLibrary1.Migrations
 {
     [DbContext(typeof(DataContext))]
-    partial class DataContextModelSnapshot : ModelSnapshot
+    [Migration("20260203045606_AddedMileageToVehicle")]
+    partial class AddedMileageToVehicle
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -380,11 +383,6 @@ namespace ClassLibrary1.Migrations
                     b.Property<int>("ReportPeriodId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("SpecificFuelType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -422,10 +420,6 @@ namespace ClassLibrary1.Migrations
                     b.Property<DateTime?>("FinalizedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("FinalizedBy")
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
                     b.Property<DateTime?>("FuelFinalizedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -446,12 +440,6 @@ namespace ClassLibrary1.Migrations
 
                     b.Property<bool>("IsFuelFinalized")
                         .HasColumnType("boolean");
-
-                    b.Property<bool>("IsMileageFinalized")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("MileageFinalizedAt")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("timestamp with time zone");

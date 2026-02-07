@@ -29,6 +29,13 @@ public class GasPurchase
     /// Type of fuel: "АИ-92", "АИ-95", or "ДТ"
     /// </summary>
     public string FuelType { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Specific fuel type for reporting.
+    /// Values: "АИ-92", "АИ-95", "АИ-98", "ДТ", "Газ", etc.
+    /// </summary>
+    public string SpecificFuelType { get; set; } = string.Empty;
+
 
     /// <summary>
     /// Cost of the purchase in UZS (Uzbeki Soums)
