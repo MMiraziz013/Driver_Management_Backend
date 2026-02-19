@@ -51,6 +51,11 @@ public class VehicleRepository : IVehicleRepository
         toUpdate.VehicleTypeId = vehicle.VehicleTypeId;
         toUpdate.RequiredDriverCategory = vehicle.RequiredDriverCategory;
         toUpdate.UpdatedAt = DateTime.UtcNow;
+        toUpdate.FuelConsumptionPer100Km = vehicle.FuelConsumptionPer100Km;
+        toUpdate.FuelType = vehicle.FuelType;
+        toUpdate.InitialFuelLevel = vehicle.InitialFuelLevel;
+        toUpdate.FuelTankCapacity = vehicle.FuelTankCapacity;
+        toUpdate.CurrentMileage = vehicle.CurrentMileage;
 
         var updated = await _context.SaveChangesAsync();
 

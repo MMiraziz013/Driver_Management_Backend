@@ -101,11 +101,18 @@ public static class Program
         // -------------------- CORS --------------------
         builder.Services.AddCors(options =>
         {
-            options.AddPolicy("FrontendPolicy", policy =>
+            options.AddPolicy("AllowFrontend", policy =>
             {
-                policy.WithOrigins("http://localhost:3000")
+                policy.WithOrigins(
+                        "http://192.168.68.123",
+                        "http://192.168.68.123:5173",  // Vite dev server
+                        "http://192.168.68.123:3000",  // React dev server
+                        "http://localhost:5173",
+                        "http://localhost:3000"
+                    )
+                    .AllowAnyMethod()
                     .AllowAnyHeader()
-                    .AllowAnyMethod();
+                    .AllowCredentials();
             });
         });
 
@@ -154,7 +161,8 @@ public static class Program
 
         // ------------ MIDDLEWARE ------------
 
-        app.UseCors("FrontendPolicy");
+        // Then use it:
+        app.UseCors("AllowFrontend");
         
         app.UseSwagger();
         app.UseSwaggerUI(options =>

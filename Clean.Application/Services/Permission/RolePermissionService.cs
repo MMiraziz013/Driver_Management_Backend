@@ -53,6 +53,9 @@ public static class RolePermissionService
                 PermissionConstants.VehicleTypes.Manage,
                 PermissionConstants.VehicleTypes.ManageSelf,
                 
+                PermissionConstants.Gas.View,
+                PermissionConstants.Gas.Manage,
+                
             }
         },
         {

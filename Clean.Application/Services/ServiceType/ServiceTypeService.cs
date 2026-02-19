@@ -62,4 +62,52 @@ public class ServiceTypeService : IServiceTypeService
             return new Response<GetServiceTypeDto>(HttpStatusCode.InternalServerError, new List<string> { ex.Message });
         }
     }
+
+    public async Task<Response<GetServiceTypeDto?>> UpdateAsync(UpdateServiceTypeDto dto)
+    {
+        try
+        {
+            var exists =  await _uow.ServiceTypes.GetByIdAsync(dto.Id);
+            if (exists is null)
+            {
+                throw new ArgumentException("No such service type to update",$"{dto.Name}");
+            }
+
+            if (string.IsNullOrEmpty(dto.Name) == false)
+            {
+                exists.Name = dto.Name;
+            }
+
+            if (string.IsNullOrEmpty(dto.Description) == false)
+            {
+                exists.Description = dto.Description;
+            }
+
+            var isUpdated = await _uow.ServiceTypes.UpdateAsync(exists);
+            if (isUpdated is null)
+            {
+                return new Response<GetServiceTypeDto?>(HttpStatusCode.InternalServerError,
+                "Error while updating the service type");
+            }
+
+            var updatedDto = new GetServiceTypeDto
+            {
+                Id = isUpdated.Id,
+                Name = isUpdated.Name,
+                Description = isUpdated.Description
+            };
+
+            return new Response<GetServiceTypeDto?>(HttpStatusCode.OK, updatedDto);
+        }
+        catch (Exception ex)
+        {
+            return new Response<GetServiceTypeDto?>(HttpStatusCode.InternalServerError, new List<string> { ex.Message });
+        }
+    }
+
+    public async Task<Response<bool>> DeleteAsync(int id)
+    {
+        var result = await _uow.ServiceTypes.DeleteAsync(id);
+        return new Response<bool>(HttpStatusCode.OK, result);
+    }
 }

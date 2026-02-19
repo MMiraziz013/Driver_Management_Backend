@@ -1,5 +1,6 @@
 using Clean.Application.Abstractions;
 using Clean.Application.Dtos.Fuel;
+using Clean.Application.Security.Permission;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -25,6 +26,7 @@ public class GasController : ControllerBase
     /// Expected columns: Date, Gas (liters), Type (АИ-92/АИ-95/ДТ), Amount (UZS)
     /// </summary>
     [HttpPost("purchases/upload/{periodId}")]
+    [PermissionAuthorize(PermissionConstants.Gas.Manage)]
     public async Task<IActionResult> UploadGasPurchases(IFormFile file, int periodId)
     {
         if (file == null || file.Length == 0)
@@ -38,6 +40,7 @@ public class GasController : ControllerBase
     /// Get all gas purchases for a period
     /// </summary>
     [HttpGet("purchases/{periodId}")]
+    [PermissionAuthorize(PermissionConstants.Gas.View)]
     public async Task<IActionResult> GetGasPurchases(int periodId)
     {
         var result = await _gasService.GetGasPurchasesAsync(periodId);
@@ -48,6 +51,7 @@ public class GasController : ControllerBase
     /// Get gas purchase summary by fuel type
     /// </summary>
     [HttpGet("purchases/{periodId}/summary")]
+    [PermissionAuthorize(PermissionConstants.Gas.View)]
     public async Task<IActionResult> GetGasPurchaseSummary(int periodId)
     {
         var result = await _gasService.GetGasPurchaseSummaryAsync(periodId);
@@ -58,6 +62,7 @@ public class GasController : ControllerBase
     /// Delete all gas purchases for a period
     /// </summary>
     [HttpDelete("purchases/{periodId}")]
+    [PermissionAuthorize(PermissionConstants.Gas.Manage)]
     public async Task<IActionResult> DeleteGasPurchases(int periodId)
     {
         var result = await _gasService.DeleteGasPurchasesAsync(periodId);
@@ -70,6 +75,7 @@ public class GasController : ControllerBase
     /// Get all vehicles with their fuel configurations
     /// </summary>
     [HttpGet("vehicles/config")]
+    [PermissionAuthorize(PermissionConstants.Gas.View)]
     public async Task<IActionResult> GetVehicleFuelConfigs()
     {
         var result = await _gasService.GetVehicleFuelConfigsAsync();
@@ -80,6 +86,7 @@ public class GasController : ControllerBase
     /// Update a single vehicle's fuel configuration
     /// </summary>
     [HttpPut("vehicles/config")]
+    [PermissionAuthorize(PermissionConstants.Gas.Manage)]
     public async Task<IActionResult> UpdateVehicleFuelConfig([FromBody] UpdateVehicleFuelConfigRequest request)
     {
         var result = await _gasService.UpdateVehicleFuelConfigAsync(request);
@@ -90,6 +97,7 @@ public class GasController : ControllerBase
     /// Bulk update vehicle fuel configurations
     /// </summary>
     [HttpPut("vehicles/config/bulk")]
+    [PermissionAuthorize(PermissionConstants.Gas.Manage)]
     public async Task<IActionResult> BulkUpdateVehicleFuelConfig([FromBody] List<UpdateVehicleFuelConfigRequest> requests)
     {
         var result = await _gasService.BulkUpdateVehicleFuelConfigAsync(requests);
@@ -100,6 +108,7 @@ public class GasController : ControllerBase
     /// Set initial fuel level for a vehicle
     /// </summary>
     [HttpPost("vehicles/initial-fuel")]
+    [PermissionAuthorize(PermissionConstants.Gas.Manage)]
     public async Task<IActionResult> SetInitialFuelLevel([FromBody] SetInitialFuelLevelRequest request)
     {
         var result = await _gasService.SetInitialFuelLevelAsync(request);
@@ -113,6 +122,7 @@ public class GasController : ControllerBase
     /// Distributes gas purchases to vehicles based on distance driven
     /// </summary>
     [HttpPost("allocate/{periodId}")]
+    [PermissionAuthorize(PermissionConstants.Gas.Manage)]
     public async Task<IActionResult> RunAutoFuelAllocation(int periodId)
     {
         var result = await _gasService.RunAutoFuelAllocationAsync(periodId);
@@ -123,6 +133,7 @@ public class GasController : ControllerBase
     /// Preview fuel allocation without saving (dry run)
     /// </summary>
     [HttpGet("allocate/{periodId}/preview")]
+    [PermissionAuthorize(PermissionConstants.Gas.Manage)]
     public async Task<IActionResult> PreviewFuelAllocation(int periodId)
     {
         var result = await _gasService.PreviewFuelAllocationAsync(periodId);
@@ -133,6 +144,7 @@ public class GasController : ControllerBase
     /// Manually allocate fuel from a purchase to a vehicle
     /// </summary>
     [HttpPost("allocate/manual")]
+    [PermissionAuthorize(PermissionConstants.Gas.Manage)]
     public async Task<IActionResult> ManualFuelAllocation([FromBody] ManualFuelAllocationRequest request)
     {
         var result = await _gasService.ManualFuelAllocationAsync(request);
@@ -145,6 +157,7 @@ public class GasController : ControllerBase
     /// Get fuel status for all vehicles in a period
     /// </summary>
     [HttpGet("status/{periodId}")]
+    [PermissionAuthorize(PermissionConstants.Gas.View)]
     public async Task<IActionResult> GetVehicleFuelStatus(int periodId)
     {
         var result = await _gasService.GetVehicleFuelStatusAsync(periodId);
@@ -155,6 +168,7 @@ public class GasController : ControllerBase
     /// Get detailed daily fuel balance for a specific vehicle
     /// </summary>
     [HttpGet("balance/{vehicleId}/{periodId}")]
+    [PermissionAuthorize(PermissionConstants.Gas.View)]
     public async Task<IActionResult> GetVehicleFuelBalance(int vehicleId, int periodId)
     {
         var result = await _gasService.GetVehicleFuelBalanceAsync(vehicleId, periodId);
@@ -165,6 +179,7 @@ public class GasController : ControllerBase
     /// Validate fuel allocations for a period (check for issues)
     /// </summary>
     [HttpGet("validate/{periodId}")]
+    [PermissionAuthorize(PermissionConstants.Gas.Manage)]
     public async Task<IActionResult> ValidateFuelAllocations(int periodId)
     {
         var result = await _gasService.ValidateFuelAllocationsAsync(periodId);
@@ -175,6 +190,7 @@ public class GasController : ControllerBase
     /// Get fuel cost breakdown by vehicle
     /// </summary>
     [HttpGet("costs/{periodId}")]
+    [PermissionAuthorize(PermissionConstants.Gas.View)]
     public async Task<IActionResult> GetFuelCostBreakdown(int periodId)
     {
         var result = await _gasService.GetFuelCostBreakdownAsync(periodId);
@@ -186,6 +202,7 @@ public class GasController : ControllerBase
     /// Shows how vehicle initial levels would be updated without saving.
     /// </summary>
     [HttpGet("finalize/{periodId}/preview")]
+    [PermissionAuthorize(PermissionConstants.Gas.View)]
     public async Task<IActionResult> PreviewFinalization(int periodId)
     {
         var result = await _gasService.PreviewFinalizationAsync(periodId);
@@ -198,6 +215,7 @@ public class GasController : ControllerBase
     /// WARNING: This action affects future periods!
     /// </summary>
     [HttpPost("finalize/{periodId}")]
+    [PermissionAuthorize(PermissionConstants.Gas.Manage)]
     public async Task<IActionResult> FinalizeFuelAllocation(int periodId)
     {
         var result = await _gasService.FinalizeFuelAllocationAsync(periodId);
@@ -209,6 +227,7 @@ public class GasController : ControllerBase
     /// Note: Vehicle initial levels may need manual correction after revert.
     /// </summary>
     [HttpPost("finalize/{periodId}/revert")]
+    [PermissionAuthorize(PermissionConstants.Gas.Manage)]
     public async Task<IActionResult> RevertFinalization(int periodId)
     {
         var result = await _gasService.RevertFinalizationAsync(periodId);

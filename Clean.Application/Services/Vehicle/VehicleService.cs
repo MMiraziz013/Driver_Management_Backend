@@ -27,7 +27,13 @@ public class VehicleService : IVehicleService
                 Model = v.Model,
                 Color = v.Color,
                 VehicleTypeName = v.VehicleType?.Name ?? "N/A",
-                RequiredDriverCategory = v.RequiredDriverCategory.ToString()
+                RequiredDriverCategory = v.RequiredDriverCategory.ToString(),
+                IsActive = v.IsActive,
+                FuelTankCapacity = v.FuelTankCapacity,
+                FuelConsumptionPer100Km = v.FuelConsumptionPer100Km,
+                FuelType = v.FuelType,
+                InitialFuelLevel = v.InitialFuelLevel,
+                CurrentMileage = v.CurrentMileage
             }).ToList();
 
             return new Response<List<GetVehicleDto>>(HttpStatusCode.OK, "Vehicles retrieved.", dtos);
@@ -58,6 +64,11 @@ public class VehicleService : IVehicleService
                 VehicleTypeId = dto.VehicleTypeId,
                 RequiredDriverCategory = dto.RequiredDriverCategory,
                 IsActive = true,
+                FuelTankCapacity = dto.FuelTankCapacity,
+                FuelConsumptionPer100Km = dto.FuelConsumptionPer100Km,
+                FuelType = dto.FuelType,
+                InitialFuelLevel = dto.InitialFuelLevel,
+                CurrentMileage = dto.CurrentMileage,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -105,6 +116,33 @@ public class VehicleService : IVehicleService
         {
             toUpdate.VehicleTypeId = dto.VehicleTypeId.Value;
         }
+
+        if (dto.FuelTankCapacity > 0)
+        {
+            toUpdate.FuelTankCapacity = dto.FuelTankCapacity;
+        }
+
+        if (dto.FuelConsumptionPer100Km > 0)
+        {
+            toUpdate.FuelConsumptionPer100Km = dto.FuelConsumptionPer100Km;
+        }
+
+        if (string.IsNullOrEmpty(dto.FuelType) == false)
+        {
+            toUpdate.FuelType = dto.FuelType;
+        }
+
+        if (dto.InitialFuelLevel > 0)
+        {
+            toUpdate.InitialFuelLevel = dto.InitialFuelLevel;
+        }
+
+        if (dto.CurrentMileage > 0)
+        {
+            toUpdate.CurrentMileage = dto.CurrentMileage;
+        }
+        
+        
 
         var updated = await _uow.Vehicles.Update(toUpdate);
         if (updated is null)

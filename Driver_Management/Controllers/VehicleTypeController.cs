@@ -1,5 +1,6 @@
 using Clean.Application.Abstractions;
 using Clean.Application.Dtos.Filters;
+using Clean.Application.Dtos.Vehicle;
 using Clean.Application.Dtos.VehicleType;
 using Clean.Application.Security.Permission;
 using Microsoft.AspNetCore.Mvc;
@@ -18,7 +19,7 @@ public class VehicleTypeController : Controller
     }
 
     [HttpGet]
-    // [PermissionAuthorize(PermissionConstants.VehicleTypes.View)]
+    [PermissionAuthorize(PermissionConstants.VehicleTypes.View)]
     public async Task<IActionResult> GetVehicleTypesAsync([FromQuery] PaginationFilter filter)
     {
         var response = await _vehicleTypeService.GetVehicleTypesAsync(filter);
@@ -26,10 +27,26 @@ public class VehicleTypeController : Controller
     }
 
     [HttpPost("add")]
-    // [PermissionAuthorize(PermissionConstants.VehicleTypes.Manage)]
+    [PermissionAuthorize(PermissionConstants.VehicleTypes.Manage)]
     public async Task<IActionResult> AddVehicleTypeAsync(AddVehicleTypeDto dto)
     {
         var response = await _vehicleTypeService.AddVehicleTypeAsync(dto);
         return StatusCode(response.StatusCode, response);
+    }
+    
+    //TODO: Implement these features below
+
+    [HttpPut]
+    [PermissionAuthorize(PermissionConstants.VehicleTypes.Manage)]
+    public async Task<IActionResult> UpdateVehicleTypeAsync(UpdateVehicleDto dto)
+    {
+        throw new NotImplementedException();
+    }
+
+    [HttpDelete]
+    [PermissionAuthorize(PermissionConstants.VehicleTypes.Manage)]
+    public async Task<IActionResult> DeleteAsync(int id)
+    {
+        throw new NotImplementedException();
     }
 }

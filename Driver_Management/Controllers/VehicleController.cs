@@ -1,5 +1,6 @@
 using Clean.Application.Abstractions;
 using Clean.Application.Dtos.Vehicle;
+using Clean.Application.Security.Permission;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Driver_Management.Controllers;
@@ -16,6 +17,7 @@ public class VehicleController : ControllerBase
     }
 
     [HttpGet]
+    [PermissionAuthorize(PermissionConstants.Vehicles.View)]
     public async Task<IActionResult> GetAllAsync()
     {
         var response = await _vehicleService.GetAllVehiclesAsync();
@@ -23,6 +25,7 @@ public class VehicleController : ControllerBase
     }
 
     [HttpPost]
+    [PermissionAuthorize(PermissionConstants.Vehicles.Manage)]
     public async Task<IActionResult> CreateAsync(CreateVehicleDto dto)
     {
         var response = await _vehicleService.CreateVehicleAsync(dto);
@@ -30,6 +33,7 @@ public class VehicleController : ControllerBase
     }
 
     [HttpPut]
+    [PermissionAuthorize(PermissionConstants.Vehicles.Manage)]
     public async Task<IActionResult> UpdateAsync(UpdateVehicleDto dto)
     {
         var response = await _vehicleService.UpdateVehicleAsync(dto);
@@ -37,6 +41,7 @@ public class VehicleController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [PermissionAuthorize(PermissionConstants.Vehicles.Manage)]
     public async Task<IActionResult> DeleteAsync(int id)
     {
         var response = await _vehicleService.DeleteVehicleAsync(id);
@@ -44,6 +49,7 @@ public class VehicleController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [PermissionAuthorize(PermissionConstants.Vehicles.Manage)]
     public async Task<IActionResult> ChangeStatusAsync(int id)
     {
         var response = await _vehicleService.ChangeStatusAsync(id);

@@ -1,5 +1,6 @@
 using Clean.Application.Abstractions;
 using Clean.Application.Dtos.Report;
+using Clean.Application.Security.Permission;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,6 +21,7 @@ public class ReportController : Controller
     /// Phase 1: Upload the CSV/Excel file for a specific 15-day period.
     /// </summary>
     [HttpPost("upload/{periodId}")]
+    [PermissionAuthorize(PermissionConstants.ReportPeriods.Manage)]
     public async Task<IActionResult> UploadReportAsync(IFormFile file, int periodId)
     {
         if (file == null || file.Length == 0)
@@ -33,6 +35,7 @@ public class ReportController : Controller
     /// Phase 2: Trigger the Auto-Assignment engine.
     /// </summary>
     [HttpPost("assign/{periodId}")]
+    [PermissionAuthorize(PermissionConstants.ReportPeriods.Manage)]
     public async Task<IActionResult> RunAssignmentAsync(int periodId)
     {
         var response = await _reportService.RunAutoAssignmentAsync(periodId);
@@ -40,6 +43,7 @@ public class ReportController : Controller
     }
 
     [HttpGet]
+    [PermissionAuthorize(PermissionConstants.ReportPeriods.View)]
     public async Task<IActionResult> GetAllPeriodsAsync()
     {
         var response = await _reportService.GetAllPeriods();
@@ -50,6 +54,7 @@ public class ReportController : Controller
     /// Phase 3: Download the final Excel with driver assignments and conflict highlights.
     /// </summary>
     [HttpGet("export/{periodId}")]
+    [PermissionAuthorize(PermissionConstants.ReportPeriods.View)]
     public async Task<IActionResult> ExportReportAsync(int periodId)
     {
         try
@@ -80,6 +85,7 @@ public class ReportController : Controller
     /// Preview period finalization (both fuel and driver assignments).
     /// </summary>
     [HttpGet("periods/{periodId}/finalize/preview")]
+    [PermissionAuthorize(PermissionConstants.ReportPeriods.View)]
     public async Task<IActionResult> PreviewPeriodFinalization(int periodId)
     {
         var result = await _reportService.PreviewPeriodFinalizationAsync(periodId);
@@ -92,6 +98,7 @@ public class ReportController : Controller
     /// WARNING: This action affects future periods!
     /// </summary>
     [HttpPost("periods/{periodId}/finalize")]
+    [PermissionAuthorize(PermissionConstants.ReportPeriods.Manage)]
     public async Task<IActionResult> FinalizePeriod(int periodId)
     {
         // Could get userId from JWT claims if using authentication
@@ -105,6 +112,7 @@ public class ReportController : Controller
     /// Revert period finalization (unlock for corrections).
     /// </summary>
     [HttpPost("periods/{periodId}/finalize/revert")]
+    [PermissionAuthorize(PermissionConstants.ReportPeriods.Manage)]
     public async Task<IActionResult> RevertPeriodFinalization(int periodId)
     {
         var result = await _reportService.RevertPeriodFinalizationAsync(periodId);
@@ -115,6 +123,7 @@ public class ReportController : Controller
     /// Export waybill report (Путевой лист) with grouped journeys
     /// </summary>
     [HttpGet("export-waybill/{periodId}")]
+    [PermissionAuthorize(PermissionConstants.ReportPeriods.Manage)]
     public async Task<IActionResult> ExportWaybillReport(int periodId)
     {
         var bytes = await _reportService.GetWaybillReportAsync(periodId);
@@ -139,6 +148,7 @@ public class ReportController : Controller
     /// Get journeys (grouped trips) for a period
     /// </summary>
     [HttpGet("journeys/{periodId}")]
+    [PermissionAuthorize(PermissionConstants.ReportPeriods.View)]
     public async Task<ActionResult<List<JourneyDto>>> GetJourneys(int periodId)
     {
         var journeys = await _reportService.GetAllJourneysAsync(periodId);
@@ -149,6 +159,7 @@ public class ReportController : Controller
     /// Update vehicle mileage
     /// </summary>
     [HttpPut("vehicle/{vehicleId}/mileage")]
+    [PermissionAuthorize(PermissionConstants.ReportPeriods.Manage)]
     public async Task<IActionResult> UpdateVehicleMileage(int vehicleId, [FromBody] UpdateMileageRequest request)
     {
         var result = await _reportService.UpdateVehicleMileageAsync(vehicleId, request.NewMileage);
@@ -165,6 +176,7 @@ public class ReportController : Controller
     /// Bulk update vehicle mileages
     /// </summary>
     [HttpPut("vehicles/mileage/bulk")]
+    [PermissionAuthorize(PermissionConstants.ReportPeriods.Manage)]
     public async Task<IActionResult> BulkUpdateVehicleMileages([FromBody] BulkMileageUpdateRequest request)
     {
         var updates = request.Updates

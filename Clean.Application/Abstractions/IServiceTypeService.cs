@@ -8,5 +8,8 @@ public interface IServiceTypeService
 {
     Task<Response<List<GetServiceTypeDto>>> GetAllAsync();
     Task<Response<GetServiceTypeDto>> CreateAsync(CreateServiceTypeDto dto);
-    
+
+    Task<Response<GetServiceTypeDto?>> UpdateAsync(UpdateServiceTypeDto dto);
+
+    Task<Response<bool>> DeleteAsync(int id);
 }

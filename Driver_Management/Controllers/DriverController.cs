@@ -19,7 +19,7 @@ public class DriverController : Controller
     }
 
     [HttpPost("add")]
-    // [PermissionAuthorize(PermissionConstants.Drivers.ManageAll)]
+    [PermissionAuthorize(PermissionConstants.Drivers.ManageAll)]
     public async Task<IActionResult> AddDriverAsync(AddDriverDto dto)
     {
         var response = await _driverService.AddDriverAsync(dto);
@@ -28,7 +28,7 @@ public class DriverController : Controller
 
 
     [HttpGet]
-    // [PermissionAuthorize(PermissionConstants.Drivers.View)]
+    [PermissionAuthorize(PermissionConstants.Drivers.View)]
     public async Task<IActionResult> GetDriversAsync([FromQuery] PaginationFilter filter)
     {
         var response = await _driverService.GetDriverPaginatedAsync(filter);
@@ -36,6 +36,7 @@ public class DriverController : Controller
     }
 
     [HttpPut]
+    [PermissionAuthorize(PermissionConstants.Drivers.ManageAll)]
     public async Task<IActionResult> EditDriverAsync(UpdateDriverDto dto)
     {
         var response = await _driverService.UpdateDriverAsync(dto);
@@ -43,6 +44,7 @@ public class DriverController : Controller
     }
 
     [HttpDelete("{id}")]
+    [PermissionAuthorize(PermissionConstants.Drivers.ManageAll)]
     public async Task<IActionResult> DeleteDriverAsync(int id)
     {
         var response = await _driverService.DeleteDriverAsync(id);

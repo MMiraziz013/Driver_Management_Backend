@@ -1,4 +1,5 @@
 using Clean.Application.Abstractions;
+using Clean.Application.Security.Permission;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Driver_Management.Controllers;
@@ -15,6 +16,7 @@ public class ReportPeriodController : Controller
     }
 
     [HttpPost]
+    [PermissionAuthorize(PermissionConstants.ReportPeriods.Manage)]
     public async Task<IActionResult> CreateAsync(string description, DateTime startDate, DateTime endDate)
     {
         var response = await _periodService.CreatePeriodAsync(description, startDate, endDate);
@@ -22,6 +24,7 @@ public class ReportPeriodController : Controller
     }
 
     [HttpGet]
+    [PermissionAuthorize(PermissionConstants.ReportPeriods.View)]
     public async Task<IActionResult> GetAllAsync()
     {
         var response = await _periodService.GetAllPeriodsAsync();
