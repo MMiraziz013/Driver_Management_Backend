@@ -22,7 +22,17 @@ public class VehicleRepository : IVehicleRepository
             .Where(v=> v.IsActive)
             .ToListAsync();
     }
-    
+
+    public async Task<List<Vehicle>> GetActiveAndInactiveAsync()
+    {
+        return await _context.Vehicles
+            .Include(v => v.Assignments)
+            .ThenInclude(a => a.Trip)
+            .Include(v => v.VehicleType) // Added this to ensure type names are available
+            .ToListAsync();
+    }
+
+
     public async Task<Vehicle?> GetByIdAsync(int id)
     {
         return await _context.Vehicles

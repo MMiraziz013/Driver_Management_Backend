@@ -43,6 +43,37 @@ public class VehicleService : IVehicleService
             return new Response<List<GetVehicleDto>>(HttpStatusCode.InternalServerError, new List<string> { ex.Message });
         }
     }
+
+    public async Task<Response<List<GetVehicleDto>>> GetActiveAndInactiveAsync()
+    {
+        try
+        {
+            var vehicles = await _uow.Vehicles.GetActiveAndInactiveAsync();
+        
+            var dtos = vehicles.Select(v => new GetVehicleDto
+            {
+                Id = v.Id,
+                PlateNumber = v.PlateNumber,
+                Model = v.Model,
+                Color = v.Color,
+                VehicleTypeName = v.VehicleType?.Name ?? "N/A",
+                RequiredDriverCategory = v.RequiredDriverCategory.ToString(),
+                IsActive = v.IsActive,
+                FuelTankCapacity = v.FuelTankCapacity,
+                FuelConsumptionPer100Km = v.FuelConsumptionPer100Km,
+                FuelType = v.FuelType,
+                InitialFuelLevel = v.InitialFuelLevel,
+                CurrentMileage = v.CurrentMileage
+            }).ToList();
+
+            return new Response<List<GetVehicleDto>>(HttpStatusCode.OK, "Vehicles retrieved.", dtos);
+        }
+        catch (Exception ex)
+        {
+            return new Response<List<GetVehicleDto>>(HttpStatusCode.InternalServerError, new List<string> { ex.Message });
+        }
+    }
+
     public async Task<Response<Domain.Entities.Vehicle>> GetVehicleByIdAsync(int id)
     {
         var vehicle = await _uow.Vehicles.GetByIdAsync(id);

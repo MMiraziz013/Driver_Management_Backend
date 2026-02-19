@@ -148,6 +148,14 @@ public class DriverService : IDriverService
     }
     public async Task<Response<bool>> DeactivateDriverAsync(int id)
     {
-        throw new NotImplementedException();
+        var exists = await _driverRepository.GetDriverByIdAsync(id);
+        if (exists is null)
+        {
+            return new Response<bool>(HttpStatusCode.NotFound, $"No driver with id: {id}");
+        }
+
+        var isDeactivated = await _driverRepository.ChangeDriverStatusAsync(id);
+
+        return new Response<bool>(HttpStatusCode.OK, isDeactivated);
     }
 }

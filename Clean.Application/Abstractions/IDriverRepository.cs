@@ -16,4 +16,6 @@ public interface IDriverRepository
     Task<Driver?> UpdateDriverAsync(Driver driver);
 
     Task<bool> DeleteDriverAsync(int id);
+
+    Task<bool> ChangeDriverStatusAsync(int id);
 }

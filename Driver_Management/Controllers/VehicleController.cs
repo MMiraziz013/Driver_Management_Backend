@@ -20,7 +20,7 @@ public class VehicleController : ControllerBase
     [PermissionAuthorize(PermissionConstants.Vehicles.View)]
     public async Task<IActionResult> GetAllAsync()
     {
-        var response = await _vehicleService.GetAllVehiclesAsync();
+        var response = await _vehicleService.GetActiveAndInactiveAsync();
         return StatusCode(response.StatusCode, response);
     }
 

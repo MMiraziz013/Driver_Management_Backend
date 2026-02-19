@@ -104,4 +104,19 @@ public class DriverRepository : IDriverRepository
 
         return isDeleted > 0;
     }
+
+    public async Task<bool> ChangeDriverStatusAsync(int id)
+    {
+        var toDeactivate = await GetDriverByIdAsync(id);
+        if (toDeactivate is null)
+        {
+            return false;
+        }
+
+        toDeactivate.IsActive = !toDeactivate.IsActive;
+        
+        var isChanged = await _context.SaveChangesAsync();
+
+        return isChanged > 0;
+    }
 }

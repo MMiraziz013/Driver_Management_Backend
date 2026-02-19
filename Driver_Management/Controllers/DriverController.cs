@@ -50,4 +50,12 @@ public class DriverController : Controller
         var response = await _driverService.DeleteDriverAsync(id);
         return StatusCode(response.StatusCode, response);
     }
+
+    [HttpPut("{id}")]
+    [PermissionAuthorize(PermissionConstants.Drivers.Manage)]
+    public async Task<IActionResult> DeactivateDriverAsync(int id)
+    {
+        var response = await _driverService.DeactivateDriverAsync(id);
+        return StatusCode(response.StatusCode, response);
+    }
 }
