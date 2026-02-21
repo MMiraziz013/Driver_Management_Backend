@@ -105,6 +105,7 @@ public static class Program
             {
                 policy.WithOrigins(
                         "http://192.168.68.123",
+                        "http://192.168.68.115",
                         "http://192.168.68.123:5173",  // Vite dev server
                         "http://192.168.68.123:3000",  // React dev server
                         "http://localhost:5173",
