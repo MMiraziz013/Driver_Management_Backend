@@ -1,5 +1,6 @@
 ﻿using Clean.Application.Abstractions;
 using Clean.Application.Services.Driver;
+using Clean.Application.Services.DriverVacation;
 using Clean.Application.Services.Gas;
 using Clean.Application.Services.JWT;
 using Clean.Application.Services.Mapbox;
@@ -31,6 +32,7 @@ public static class ApplicationInjection
         services.AddTransient<IReportService, ReportService>();
         services.AddTransient<IServiceTypeService, ServiceTypeService>();
         services.AddScoped<IGasService, GasService>();
+        services.AddScoped<IDriverVacationService, DriverVacationService>();
 
         
         services.AddHttpClient<IMapboxService, MapboxService>(client =>

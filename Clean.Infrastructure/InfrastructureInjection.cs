@@ -44,6 +44,7 @@ public static class InfrastructureInjection
         services.AddTransient<IGasPurchaseRepository, GasPurchaseRepository>();
         services.AddTransient<IVehicleFuelAllocationRepository, VehicleFuelAllocationRepository>();
         services.AddTransient<IDriverPeriodStateRepository, DriverPeriodStateRepository>();
+        services.AddTransient<IDriverVacationRepository, DriverVacationRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         return services;
     }

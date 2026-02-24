@@ -175,9 +175,6 @@ public static class Program
 
         app.UseMiddleware<LoggingMiddleware>();
 
-        app.UseHttpsRedirection();
-        app.UseCors("FrontendPolicy");
-
         app.UseAuthentication();
         app.UseAuthorization();
 
