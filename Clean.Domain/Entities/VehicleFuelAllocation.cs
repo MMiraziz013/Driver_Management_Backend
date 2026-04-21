@@ -67,28 +67,15 @@ public class VehicleFuelAllocation
 /// </summary>
 public enum FuelAllocationReason
 {
-    /// <summary>
-    /// Allocated automatically based on distance driven
-    /// </summary>
     AutoDistanceBased = 0,
-
-    /// <summary>
-    /// Allocated manually by administrator
-    /// </summary>
     ManualAllocation = 1,
-
-    /// <summary>
-    /// Balance adjustment to correct discrepancies
-    /// </summary>
-    BalanceAdjustment = 2,
-
-    /// <summary>
-    /// Initial fill-up at period start
-    /// </summary>
-    InitialFillUp = 3,
-
-    /// <summary>
-    /// Carry-over from previous period
-    /// </summary>
-    PeriodCarryOver = 4
+    TripConsumption = 2,
+    OperationalOverhead = 3,
+    TankFill = 4,              // ADD THIS
+    VehicleWarmup = 5,
+    GarageMovement = 6,
+    TrafficAdjustment = 7,
+    BalanceAdjustment = 8,
+    InitialFillUp = 9,
+    PeriodCarryOver = 10
 }

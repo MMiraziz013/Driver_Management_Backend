@@ -537,7 +537,7 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
     /// Threshold for allowing purchase splitting across multiple vehicles.
     /// Purchases larger than this can be split; smaller ones go to one vehicle only.
     /// </summary>
-    private const double LARGE_PURCHASE_THRESHOLD = 55.0;
+    private const double LARGE_PURCHASE_THRESHOLD = 29.9;
     
         /// <summary>
     /// NEW: Daily fuel allocation algorithm

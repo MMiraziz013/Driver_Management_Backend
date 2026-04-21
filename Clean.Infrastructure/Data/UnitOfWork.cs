@@ -1,6 +1,7 @@
-using ClassLibrary1.Data;
 using ClassLibrary1.Data.Repositories;
 using Clean.Application.Abstractions;
+
+namespace ClassLibrary1.Data;
 
 public class UnitOfWork : IUnitOfWork
 {

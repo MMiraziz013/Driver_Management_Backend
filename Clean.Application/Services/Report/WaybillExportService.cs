@@ -52,103 +52,97 @@ public class WaybillExportService
     }
 
     private void CreateVehicleSheets(
-        IXLWorkbook workbook,
-        List<JourneyDto> journeys,
-        List<VehicleFuelAllocation> fuelAllocations,
-        List<Domain.Entities.Vehicle> vehicles,
-        Domain.Entities.ReportPeriod period)
+    IXLWorkbook workbook,
+    List<JourneyDto> journeys,
+    List<VehicleFuelAllocation> fuelAllocations,
+    List<Domain.Entities.Vehicle> vehicles,
+    Domain.Entities.ReportPeriod period)
+{
+    var journeysByVehicle = journeys
+        .GroupBy(j => new { j.VehicleId, j.VehiclePlate, j.VehicleModel })
+        .OrderBy(g => g.Key.VehiclePlate)
+        .ToList();
+
+    int sheetNumber = 1;  // Sequential number for ALL pages across all vehicles
+
+    foreach (var vehicleGroup in journeysByVehicle)
     {
-        var journeysByVehicle = journeys
-            .GroupBy(j => new { j.VehicleId, j.VehiclePlate, j.VehicleModel })
-            .OrderBy(g => g.Key.VehiclePlate)
+        var vehicleId = vehicleGroup.Key.VehicleId;
+        var vehiclePlate = vehicleGroup.Key.VehiclePlate;
+        var vehicleModel = vehicleGroup.Key.VehicleModel;
+        var vehicle = vehicles.FirstOrDefault(v => v.Id == vehicleId);
+
+        var vehicleFuelAllocations = fuelAllocations
+            .Where(fa => fa.VehicleId == vehicleId)
+            .OrderBy(fa => fa.AllocationDate)
             .ToList();
 
-        foreach (var vehicleGroup in journeysByVehicle)
+        var allVehicleJourneys = vehicleGroup.ToList();
+
+        var processedTimeline = PreCalculateVehicleTimelineWithOptimalFuel(
+            allVehicleJourneys,
+            vehicleFuelAllocations,
+            vehicle);
+
+        double totalVehicleFuelConsumed = allVehicleJourneys.Sum(j => j.TotalFuelConsumed);
+        double totalVehicleFuelAllocated = vehicleFuelAllocations.Sum(fa => fa.LitersAllocated);
+        double totalVehicleDistance = allVehicleJourneys.Sum(j => j.TotalDistanceKm);
+        double initialFuelLevel = vehicle?.InitialFuelLevel ?? 0;
+        double endingFuelLevel = initialFuelLevel + totalVehicleFuelAllocated - totalVehicleFuelConsumed;
+
+        var driversList = vehicleGroup
+            .GroupBy(j => new { j.DriverId, j.DriverName })
+            .OrderBy(g => g.Min(j => j.Date))
+            .ThenBy(g => g.Min(j => j.DepartureTime))
+            .Select(g => new { g.Key.DriverId, g.Key.DriverName })
+            .ToList();
+
+        var driverPages = new List<List<(int DriverId, string DriverName)>>();
+        for (int i = 0; i < driversList.Count && driverPages.Count < MAX_PAGES_PER_VEHICLE; i += MAX_DRIVERS_PER_PAGE)
         {
-            var vehicleId = vehicleGroup.Key.VehicleId;
-            var vehiclePlate = vehicleGroup.Key.VehiclePlate;
-            var vehicleModel = vehicleGroup.Key.VehicleModel;
-            var vehicle = vehicles.FirstOrDefault(v => v.Id == vehicleId);
-
-            var vehicleFuelAllocations = fuelAllocations
-                .Where(fa => fa.VehicleId == vehicleId)
-                .OrderBy(fa => fa.AllocationDate)
+            var pageDrivers = driversList
+                .Skip(i)
+                .Take(MAX_DRIVERS_PER_PAGE)
+                .Select(d => (d.DriverId, d.DriverName))
                 .ToList();
+            driverPages.Add(pageDrivers);
+        }
 
-            var allVehicleJourneys = vehicleGroup.ToList();
+        int totalPages = driverPages.Count;
 
-            // ================================================================
-            // STEP 1: Pre-calculate ALL timeline items with OPTIMALLY PLACED fuel
-            // Fuel is allocated to the trip that needs it most
-            // ================================================================
-            var processedTimeline = PreCalculateVehicleTimelineWithOptimalFuel(
-                allVehicleJourneys,
-                vehicleFuelAllocations,
-                vehicle);
+        var timelineByPage = DistributeTimelineToPages(processedTimeline, driverPages);
 
-            // Calculate totals
-            double totalVehicleFuelConsumed = allVehicleJourneys.Sum(j => j.TotalFuelConsumed);
-            double totalVehicleFuelAllocated = vehicleFuelAllocations.Sum(fa => fa.LitersAllocated);
-            double totalVehicleDistance = allVehicleJourneys.Sum(j => j.TotalDistanceKm);
-            double initialFuelLevel = vehicle?.InitialFuelLevel ?? 0;
-            double endingFuelLevel = initialFuelLevel + totalVehicleFuelAllocated - totalVehicleFuelConsumed;
+        for (int pageIndex = 0; pageIndex < driverPages.Count; pageIndex++)
+        {
+            var pageDrivers = driverPages[pageIndex];
+            int pageNumber = pageIndex + 1;
 
-            // Get unique drivers
-            var driversList = vehicleGroup
-                .GroupBy(j => new { j.DriverId, j.DriverName })
-                .OrderBy(g => g.Min(j => j.Date))
-                .ThenBy(g => g.Min(j => j.DepartureTime))
-                .Select(g => new { g.Key.DriverId, g.Key.DriverName })
-                .ToList();
+            var pageTimeline = timelineByPage.GetValueOrDefault(pageIndex, new List<ProcessedTimelineItem>());
 
-            // Split drivers into pages
-            var driverPages = new List<List<(int DriverId, string DriverName)>>();
-            for (int i = 0; i < driversList.Count && driverPages.Count < MAX_PAGES_PER_VEHICLE; i += MAX_DRIVERS_PER_PAGE)
-            {
-                var pageDrivers = driversList
-                    .Skip(i)
-                    .Take(MAX_DRIVERS_PER_PAGE)
-                    .Select(d => (d.DriverId, d.DriverName))
-                    .ToList();
-                driverPages.Add(pageDrivers);
-            }
+            var driverNamesForHeader = string.Join(", ", pageDrivers.Select(d => d.DriverName));
+            string sheetName = CreateSheetName(vehiclePlate, pageNumber, totalPages);
 
-            int totalPages = driverPages.Count;
+            var ws = workbook.Worksheets.Add(sheetName);
 
-            // ================================================================
-            // STEP 2: Distribute timeline items to pages based on driver
-            // ================================================================
-            var timelineByPage = DistributeTimelineToPages(processedTimeline, driverPages);
+            CreateVehicleHeader(ws, vehiclePlate, vehicleModel, driverNamesForHeader,
+                vehicle, period, pageNumber, totalPages, pageDrivers.Count > 1,
+                sheetNumber);  // Pass current sheet number
 
-            // Create sheets for each page
-            for (int pageIndex = 0; pageIndex < driverPages.Count; pageIndex++)
-            {
-                var pageDrivers = driverPages[pageIndex];
-                int pageNumber = pageIndex + 1;
+            CreateVehicleJourneyRows(
+                ws,
+                pageTimeline,
+                pageDrivers,
+                totalVehicleFuelConsumed,
+                totalVehicleFuelAllocated,
+                totalVehicleDistance,
+                initialFuelLevel,
+                endingFuelLevel,
+                pageDrivers.Count > 1);
 
-                var pageTimeline = timelineByPage.GetValueOrDefault(pageIndex, new List<ProcessedTimelineItem>());
-
-                var driverNamesForHeader = string.Join(", ", pageDrivers.Select(d => d.DriverName));
-                string sheetName = CreateSheetName(vehiclePlate, pageNumber, totalPages);
-
-                var ws = workbook.Worksheets.Add(sheetName);
-
-                CreateVehicleHeader(ws, vehiclePlate, vehicleModel, driverNamesForHeader,
-                    vehicle, period, pageNumber, totalPages, pageDrivers.Count > 1);
-
-                CreateVehicleJourneyRows(
-                    ws,
-                    pageTimeline,
-                    pageDrivers,
-                    totalVehicleFuelConsumed,
-                    totalVehicleFuelAllocated,
-                    totalVehicleDistance,
-                    initialFuelLevel,
-                    endingFuelLevel,
-                    pageDrivers.Count > 1);
-            }
+            sheetNumber++;  // Increment AFTER each page is created
         }
     }
+}
 
     /// <summary>
     /// Pre-calculate mileage and fuel for ALL journeys, with fuel allocations
@@ -398,10 +392,22 @@ public class WaybillExportService
 
     private void CreateVehicleHeader(
         IXLWorksheet ws, string vehiclePlate, string vehicleModel, string driverNames,
-        Domain.Entities.Vehicle? vehicle, Domain.Entities.ReportPeriod period, int pageNumber, int totalPages, bool multipleDrivers)
+        Domain.Entities.Vehicle? vehicle, Domain.Entities.ReportPeriod period,
+        int pageNumber, int totalPages, bool multipleDrivers,
+        int sheetNumber)  // Sequential sheet number
     {
+        // Sheet number in top-right corner
+        ws.Cell(1, 14).Value = $"№ {sheetNumber}";
+        ws.Cell(1, 14).Style.Font.Bold = true;
+        ws.Cell(1, 14).Style.Font.FontSize = 18;
+        ws.Cell(1, 14).Style.Font.FontColor = XLColor.DarkBlue;
+        ws.Cell(1, 14).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+        ws.Cell(1, 14).Style.Border.OutsideBorder = XLBorderStyleValues.Medium;
+        ws.Cell(1, 14).Style.Border.OutsideBorderColor = XLColor.DarkBlue;
+        ws.Range(1, 14, 1, 15).Merge();
+
         ws.Cell(1, 1).Value = "ПУТЕВОЙ ЛИСТ";
-        ws.Range(1, 1, 1, 15).Merge();
+        ws.Range(1, 1, 1, 13).Merge();
         ws.Cell(1, 1).Style.Font.Bold = true;
         ws.Cell(1, 1).Style.Font.FontSize = 16;
         ws.Cell(1, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
@@ -437,7 +443,7 @@ public class WaybillExportService
             ws.Cell(4, 7).Value = "Нач. топливо:";
             ws.Cell(4, 7).Style.Font.Bold = true;
             ws.Cell(4, 8).Value = $"{vehicle.InitialFuelLevel:F1} л";
-            
+
             ws.Cell(5, 7).Value = "Объём бака:";
             ws.Cell(5, 7).Style.Font.Bold = true;
             ws.Cell(5, 8).Value = $"{vehicle.FuelTankCapacity} л";

@@ -1,11 +1,13 @@
 using Clean.Application.Dtos.Responses;
-using Clean.Domain.Entities;
+using Clean.Application.Dtos.Trip;
 
 namespace Clean.Application.Abstractions;
 
 public interface ITripService
 {
-    Task<Response<Trip>> GetTripByIdAsync(int id);
-    Task<Response<List<Trip>>> GetTripsByPeriodAsync(int periodId);
-    Task<Response<bool>> DeleteTripAsync(int id);
+    Task<Response<List<TripDto>>> GetTripsByPeriodAsync(int periodId);
+    Task<Response<TripDto>> GetTripByIdAsync(int id);
+    Task<Response<string>> UpdateTripAsync(UpdateTripDto dto);
+    Task<Response<double?>> RecalculateTripDistanceAsync(int id);
+    Task<Response<string>> DeleteTripAsync(int id);
 }

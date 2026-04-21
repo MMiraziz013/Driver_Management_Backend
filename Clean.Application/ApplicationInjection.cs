@@ -22,7 +22,6 @@ public static class ApplicationInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        //TODO: Test the VehicleType Service and implement VehicleType repository.
         services.AddTransient<IUserService, UserService>();
         services.AddTransient<IDriverService, DriverService>();
         services.AddTransient<IReportPeriodService, ReportPeriodService>();
@@ -33,6 +32,8 @@ public static class ApplicationInjection
         services.AddTransient<IServiceTypeService, ServiceTypeService>();
         services.AddScoped<IGasService, GasService>();
         services.AddScoped<IDriverVacationService, DriverVacationService>();
+        services.AddScoped<ITripService, TripService>();
+
 
         
         services.AddHttpClient<IMapboxService, MapboxService>(client =>

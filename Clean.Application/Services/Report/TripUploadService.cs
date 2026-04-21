@@ -218,7 +218,7 @@ public class TripUploadService
 
             // Duration-based fallback
             var hours = (tripEnd - tripStart).TotalHours;
-            var durationEstimate = hours * 10.0;
+            var durationEstimate = hours * 15.0;
 
             double finalDistance;
 

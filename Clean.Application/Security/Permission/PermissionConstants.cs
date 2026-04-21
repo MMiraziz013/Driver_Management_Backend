@@ -89,4 +89,11 @@ public static class PermissionConstants
             public const string Manage = "Permissions.Gas.Manage";
             public const string View = "Permissions.Gas.View";
         }
+
+        public static class Reports
+        {
+            public const string View = "Permissions.Reports.View";
+            public const string Manage = "Permissions.Reports.Manage";
+            public const string ManageAll = "Permissions.Reports.ManageAll";
+        }
     }
