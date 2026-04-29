@@ -1,4 +1,5 @@
 using ClassLibrary1.Configurations;
+using ClassLibrary1.Data.Configurations;
 using Clean.Application.Abstractions;
 using Clean.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
@@ -35,6 +36,8 @@ public class DataContext : IdentityDbContext<User, IdentityRole<int>, int>, IDat
     public DbSet<VehicleFuelAllocation> VehicleFuelAllocations { get; set; }
 
     public DbSet<DriverPeriodState> DriverPeriodStates { get; set; }
+    public DbSet<BonusSettings> BonusSettings { get; set; }
+    public DbSet<ServiceTypeBonusConfig> ServiceTypeBonusConfigs { get; set; }
 
 
     public async Task MigrateAsync()
@@ -60,5 +63,8 @@ public class DataContext : IdentityDbContext<User, IdentityRole<int>, int>, IDat
         builder.ApplyConfigurationsFromAssembly(typeof(VehicleFuelAllocationConfigurations).Assembly);
         builder.ApplyConfigurationsFromAssembly(typeof(GasPurchaseConfigurations).Assembly);
         builder.ApplyConfigurationsFromAssembly(typeof(DriverPeriodStateConfiguration).Assembly);
+        builder.ApplyConfigurationsFromAssembly(typeof(BonusSettingsConfiguration).Assembly);
+        builder.ApplyConfigurationsFromAssembly(typeof(ServiceTypeBonusConfigConfiguration).Assembly);
+
     }
 }

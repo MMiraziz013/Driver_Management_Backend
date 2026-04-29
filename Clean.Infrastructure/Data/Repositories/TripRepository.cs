@@ -65,4 +65,9 @@ public class TripRepository : ITripRepository
     {
         return await _context.Trips.ToListAsync();
     }
+
+    public void Delete(Trip trip)
+    {
+        _context.Trips.Remove(trip);
+    }
 }

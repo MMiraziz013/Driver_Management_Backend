@@ -3,6 +3,7 @@ using System;
 using ClassLibrary1.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ClassLibrary1.Migrations
 {
     [DbContext(typeof(DataContext))]
-    partial class DataContextModelSnapshot : ModelSnapshot
+    [Migration("20260428061052_SeparateFromAirportRailwayRates")]
+    partial class SeparateFromAirportRailwayRates
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -36,9 +39,6 @@ namespace ClassLibrary1.Migrations
                     b.Property<decimal>("Duration10To12HoursRate")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<decimal>("Duration12To14HoursRate")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<decimal>("Duration4To6HoursRate")
                         .HasColumnType("decimal(18,2)");
 
@@ -48,7 +48,7 @@ namespace ClassLibrary1.Migrations
                     b.Property<decimal>("Duration8To10HoursRate")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<decimal>("DurationOver14HoursRate")
+                    b.Property<decimal>("DurationOver12HoursRate")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("DurationUnder2HoursRate")

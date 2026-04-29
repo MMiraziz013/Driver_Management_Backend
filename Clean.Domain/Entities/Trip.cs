@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace Clean.Domain.Entities;
 
 public class Trip
@@ -33,6 +35,11 @@ public class Trip
     public bool CoordinatesResolved { get; set; } = true; // Track if coordinates were found
 
     public string? PmtMethod { get; set; }
+    
+    [NotMapped]
+    public bool IsCashTrip => PmtMethod?.Contains("Cash", StringComparison.OrdinalIgnoreCase) == true 
+                              || PmtMethod?.Contains("Наличные", StringComparison.OrdinalIgnoreCase) == true;
+
 
     public List<DriverAssignment> Assignments { get; set; } = new();
     

@@ -5,6 +5,7 @@ using System.Text;
 using Clean.Application.Abstractions;
 using Clean.Application.Dtos.Fuel;
 using Clean.Application.Dtos.Responses;
+using Clean.Application.Extensions;
 using Clean.Application.Services.Report.Finalization;
 using Clean.Domain.Entities;
 using Clean.Domain.Enums;
@@ -446,6 +447,9 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
                     var vehicleTrips = period.Trips
                         .Where(t => t.Assignments.Any(a => a.VehicleId == vehicle.Id && !a.HasConflict))
                         .ToList();
+                    
+                    // excluding cash trips
+                    vehicleTrips = vehicleTrips.ExcludeCashTrips().ToList();
 
                     double totalDistance = vehicleTrips.Sum(t => t.DistanceKm ?? 0);
                     double totalFuelNeeded = vehicle.CalculateFuelConsumption(totalDistance);
@@ -972,6 +976,9 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
                     .Where(t => t.Assignments.Any(a => a.VehicleId == vehicle.Id && !a.HasConflict))
                     .ToList();
 
+                // excluding cash trips
+                vehicleTrips = vehicleTrips.ExcludeCashTrips().ToList();
+
                 double totalDistance = vehicleTrips.Sum(t => t.DistanceKm ?? 0);
                 double fuelNeeded = vehicle.CalculateFuelConsumption(totalDistance);
                 double endingLevel = vehicle.InitialFuelLevel - fuelNeeded;
@@ -1099,6 +1106,9 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
                 var vehicleTrips = period.Trips
                     .Where(t => t.Assignments.Any(a => a.VehicleId == vehicle.Id && !a.HasConflict))
                     .ToList();
+                
+                // excluding cash trips
+                vehicleTrips = vehicleTrips.ExcludeCashTrips().ToList();
 
                 double totalDistance = vehicleTrips.Sum(t => t.DistanceKm ?? 0);
                 double fuelNeeded = vehicle.CalculateFuelConsumption(totalDistance);
@@ -1185,6 +1195,8 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
                 .OrderBy(t => t.PickUpDate)
                 .ThenBy(t => t.GarageOutTime)
                 .ToList();
+
+            vehicleTrips = vehicleTrips.ExcludeCashTrips().ToList();
 
             var dailyBalances = new List<DailyFuelBalanceDto>();
             double runningBalance = vehicle.InitialFuelLevel;
@@ -1347,6 +1359,9 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
                 var vehicleTrips = periodWithTrips!.Trips
                     .Where(t => t.Assignments.Any(a => a.VehicleId == vehicle.Id && !a.HasConflict))
                     .ToList();
+                
+                // excluding cash trips
+                vehicleTrips = vehicleTrips.ExcludeCashTrips().ToList();
 
                 // Calculate fuel consumed
                 double totalDistance = vehicleTrips.Sum(t => t.DistanceKm ?? 0);
@@ -1469,6 +1484,9 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
                 var vehicleTrips = periodWithTrips!.Trips
                     .Where(t => t.Assignments.Any(a => a.VehicleId == vehicle.Id && !a.HasConflict))
                     .ToList();
+
+                // excluding cash trips
+                vehicleTrips = vehicleTrips.ExcludeCashTrips().ToList();
 
                 double totalDistance = vehicleTrips.Sum(t => t.DistanceKm ?? 0);
                 double fuelConsumed = vehicle.CalculateFuelConsumption(totalDistance);
@@ -1595,6 +1613,9 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
                     var vehicleTrips = period.Trips
                         .Where(t => t.Assignments.Any(a => a.VehicleId == vehicle.Id && !a.HasConflict))
                         .ToList();
+                    
+                    // excluding cash trips
+                    vehicleTrips = vehicleTrips.ExcludeCashTrips().ToList();
 
                     double distance = vehicleTrips.Sum(t => t.DistanceKm ?? 0);
                     double fuelNeeded = vehicle.CalculateFuelConsumption(distance);

@@ -46,6 +46,8 @@ public static class InfrastructureInjection
         services.AddTransient<IDriverPeriodStateRepository, DriverPeriodStateRepository>();
         services.AddTransient<IDriverVacationRepository, DriverVacationRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<IBonusSettingsRepository, BonusSettingsRepository>();
+        services.AddScoped<IServiceTypeBonusConfigRepository, ServiceTypeBonusConfigRepository>();
         return services;
     }
 }

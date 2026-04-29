@@ -15,12 +15,15 @@ public class UnitOfWork : IUnitOfWork
     private IVehicleTypeRepository? _vehicleTypes;
     private IServiceTypeRepository? _serviceTypes;
     private ICachedLocationRepository? _cachedLocations;
-    
-    // NEW: Gas Management repositories
+
+    // Gas Management repositories
     private IGasPurchaseRepository? _gasPurchases;
     private IVehicleFuelAllocationRepository? _fuelAllocations;
-
     private IDriverPeriodStateRepository? _driverPeriodStates;
+
+    // NEW: Bonus repositories
+    private IBonusSettingsRepository? _bonusSettings;
+    private IServiceTypeBonusConfigRepository? _serviceTypeBonusConfigs;
 
     public UnitOfWork(DataContext context)
     {
@@ -38,10 +41,14 @@ public class UnitOfWork : IUnitOfWork
     public IServiceTypeRepository ServiceTypes => _serviceTypes ??= new ServiceTypeRepository(_context);
     public ICachedLocationRepository CachedLocations => _cachedLocations ??= new CachedLocationRepository(_context);
 
-    // NEW: Gas Management repository properties
+    // Gas Management repository properties
     public IGasPurchaseRepository GasPurchases => _gasPurchases ??= new GasPurchaseRepository(_context);
     public IVehicleFuelAllocationRepository FuelAllocations => _fuelAllocations ??= new VehicleFuelAllocationRepository(_context);
     public IDriverPeriodStateRepository DriverPeriodStates => _driverPeriodStates ??= new DriverPeriodStateRepository(_context);
+
+    // NEW: Bonus repository properties
+    public IBonusSettingsRepository BonusSettings => _bonusSettings ??= new BonusSettingsRepository(_context);
+    public IServiceTypeBonusConfigRepository ServiceTypeBonusConfigs => _serviceTypeBonusConfigs ??= new ServiceTypeBonusConfigRepository(_context);
 
     public void RemoveRange<T>(IEnumerable<T> entities) where T : class
     {

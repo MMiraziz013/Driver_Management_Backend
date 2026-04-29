@@ -30,4 +30,13 @@ public class ReportPeriodController : Controller
         var response = await _periodService.GetAllPeriodsAsync();
         return StatusCode(response.StatusCode, response);
     }
+    
+    
+    [HttpDelete("{id}")]
+    [PermissionAuthorize(PermissionConstants.ReportPeriods.Manage)]
+    public async Task<IActionResult> DeleteReportPeriod(int id)
+    {
+        var result = await _periodService.DeletePeriodWithTripsAsync(id);
+        return StatusCode((int)result.StatusCode, result);
+    }
 }

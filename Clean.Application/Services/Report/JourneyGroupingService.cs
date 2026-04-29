@@ -1,4 +1,5 @@
 using Clean.Application.Dtos.Report;
+using Clean.Application.Extensions;
 using Clean.Domain.Entities;
 
 namespace Clean.Application.Services.Report;
@@ -28,6 +29,9 @@ public class JourneyGroupingService
             .OrderBy(t => t.PickUpDate)
             .ThenBy(t => t.GarageOutTime)
             .ToList();
+        
+        // excluding cash trips
+        assignedTrips = assignedTrips.ExcludeCashTrips().ToList();
 
         if (!assignedTrips.Any())
             return journeys;

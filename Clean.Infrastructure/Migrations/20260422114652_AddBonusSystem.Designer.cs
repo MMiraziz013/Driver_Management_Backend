@@ -3,6 +3,7 @@ using System;
 using ClassLibrary1.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ClassLibrary1.Migrations
 {
     [DbContext(typeof(DataContext))]
-    partial class DataContextModelSnapshot : ModelSnapshot
+    [Migration("20260422114652_AddBonusSystem")]
+    partial class AddBonusSystem
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -33,22 +36,13 @@ namespace ClassLibrary1.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<decimal>("Duration10To12HoursRate")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("Duration12To14HoursRate")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<decimal>("Duration4To6HoursRate")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<decimal>("Duration6To8HoursRate")
+                    b.Property<decimal>("Duration6To12HoursRate")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<decimal>("Duration8To10HoursRate")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("DurationOver14HoursRate")
+                    b.Property<decimal>("DurationOver12HoursRate")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("DurationUnder2HoursRate")
@@ -72,18 +66,6 @@ namespace ClassLibrary1.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("premium_vehicle_types");
-
-                    b.Property<decimal>("QuantityFromAirportPremiumRate")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("QuantityFromAirportStandardRate")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("QuantityFromRailwayPremiumRate")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("QuantityFromRailwayStandardRate")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("QuantityPremiumVehicleRate")
                         .HasColumnType("decimal(18,2)");

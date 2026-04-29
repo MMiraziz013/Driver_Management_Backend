@@ -1,5 +1,7 @@
+using System.Net;
 using Clean.Application.Abstractions;
 using Clean.Application.Dtos.Report;
+using Clean.Application.Dtos.Responses;
 using Clean.Application.Security.Permission;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -192,4 +194,6 @@ public class ReportController : Controller
         
         return StatusCode((int)result.StatusCode, new { message = result.Message });
     }
+    
+    
 }

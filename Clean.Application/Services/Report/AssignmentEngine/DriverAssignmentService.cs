@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Clean.Application.Abstractions;
 using Clean.Application.Dtos.Responses;
+using Clean.Application.Extensions;
 using Clean.Domain.Entities;
 using Clean.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -55,7 +56,9 @@ public class DriverAssignmentService
             var drivers = (await _uow.Drivers.GetActiveDriversWithDetailsAsync()).ToList();
             var vehicles = (await _uow.Vehicles.GetAllAsync()).ToList();
             var trips = period.Trips.OrderBy(t => t.PickUpDate).ThenBy(t => t.GarageOutTime).ToList();
-
+            
+            // excluding cash trips
+            trips = trips.ExcludeCashTrips().ToList();
             // Initialize tracking
             var vehicleWorkload = vehicles.ToDictionary(v => v.Id, v => 0);
             var driverWorkload = drivers.ToDictionary(d => d.Id, d => 0);

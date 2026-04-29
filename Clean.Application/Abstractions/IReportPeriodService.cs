@@ -8,4 +8,6 @@ public interface IReportPeriodService
     Task<Response<ReportPeriod>> CreatePeriodAsync(string name, DateTime start, DateTime end);
     Task<Response<List<ReportPeriod>>> GetAllPeriodsAsync();
     Task<Response<ReportPeriod>> GetPeriodByIdAsync(int id);
+    
+    Task<Response<string>> DeletePeriodWithTripsAsync(int periodId);
 }

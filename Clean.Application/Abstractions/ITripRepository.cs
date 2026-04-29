@@ -12,4 +12,5 @@ public interface ITripRepository
     void Update(Trip trip);
     void Remove(Trip trip);
     Task<List<Trip>> GetAllAsync();
+    void Delete(Trip trip);
 }

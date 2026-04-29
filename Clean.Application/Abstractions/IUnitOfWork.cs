@@ -18,6 +18,10 @@ public interface IUnitOfWork : IDisposable
     IVehicleFuelAllocationRepository FuelAllocations { get; }
     IDriverPeriodStateRepository DriverPeriodStates { get; } 
     
+    IBonusSettingsRepository BonusSettings { get; }
+    
+    IServiceTypeBonusConfigRepository ServiceTypeBonusConfigs { get; }
+    
     void RemoveRange<T>(IEnumerable<T> entities) where T : class;
     
     Task<int> CompleteAsync(); // Effectively SaveChangesAsync()

@@ -56,12 +56,13 @@ public class TripUploadService
                 string vName = row.VehicleType?.ToString() ?? "";
                 string sName = row.ServiceType?.ToString() ?? "";
                 string pmtMethod = row.PmtMethod?.ToString() ?? "";
-
-                if (pmtMethod.Equals("Cash", StringComparison.OrdinalIgnoreCase))
-                {
-                    Console.WriteLine($"⏭️ Skipping cash payment trip: {row.ConfNumber}");
-                    continue;
-                }
+                
+                // Now we don't skip the CASH trips. If you want to skip them, uncomment this snippet.
+                // if (pmtMethod.Equals("Cash", StringComparison.OrdinalIgnoreCase))
+                // {
+                //     Console.WriteLine($"⏭️ Skipping cash payment trip: {row.ConfNumber}");
+                //     continue;
+                // }
 
                 var vType = vTypes.FirstOrDefault(x => x.Name.Equals(vName, StringComparison.OrdinalIgnoreCase));
                 var sType = sTypes.FirstOrDefault(x => x.Name.Equals(sName, StringComparison.OrdinalIgnoreCase));

@@ -56,4 +56,46 @@ public class ReportPeriodService : IReportPeriodService
 
         return new Response<Domain.Entities.ReportPeriod>(HttpStatusCode.OK, period);
     }
-}
+    
+    public async Task<Response<string>> DeletePeriodWithTripsAsync(int periodId)
+    {
+        try
+        {
+            var period = await _uow.ReportPeriods.GetByIdAsync(periodId);
+            if (period == null)
+            {
+                return new Response<string>(HttpStatusCode.NotFound, 
+                    new List<string> { "Report period not found" });
+            }
+
+            // Prevent deletion of finalized periods
+            if (period.IsFinalized || period.IsFuelFinalized || period.IsAssignmentFinalized)
+            {
+                return new Response<string>(HttpStatusCode.BadRequest, 
+                    new List<string> { "Cannot delete a finalized period. Revert finalization first." });
+            }
+
+            // Get all trips for this period
+            var allTrips = await _uow.Trips.GetAllAsync();
+            var periodTrips = allTrips.Where(t => t.ReportPeriodId == periodId).ToList();
+            int tripCount = periodTrips.Count;
+
+            // Delete trips first (due to foreign key constraints)
+            foreach (var trip in periodTrips)
+            {
+                _uow.Trips.Delete(trip);
+            }
+
+            // Delete the period
+            _uow.ReportPeriods.Delete(period);
+            await _uow.CompleteAsync();
+
+            return new Response<string>(HttpStatusCode.OK, 
+                $"Deleted period '{period.Description}' and {tripCount} associated trips");
+        }
+        catch (Exception ex)
+        {
+            return new Response<string>(HttpStatusCode.InternalServerError, 
+                new List<string> { ex.Message });
+        }
+    }}

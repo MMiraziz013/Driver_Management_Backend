@@ -1,4 +1,5 @@
 ﻿using Clean.Application.Abstractions;
+using Clean.Application.Services.Bonus;
 using Clean.Application.Services.Driver;
 using Clean.Application.Services.DriverVacation;
 using Clean.Application.Services.Gas;
@@ -33,6 +34,8 @@ public static class ApplicationInjection
         services.AddScoped<IGasService, GasService>();
         services.AddScoped<IDriverVacationService, DriverVacationService>();
         services.AddScoped<ITripService, TripService>();
+        services.AddScoped<IBonusSettingsService, BonusSettingsService>();
+        services.AddScoped<IBonusCalculationService, BonusCalculationService>();
 
 
         

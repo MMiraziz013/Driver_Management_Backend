@@ -26,6 +26,10 @@ public interface IDataContext
 
     public DbSet<DriverPeriodState> DriverPeriodStates { get; set; }
     
+    public DbSet<BonusSettings>  BonusSettings { get; set; }
+
+    public DbSet<ServiceTypeBonusConfig> ServiceTypeBonusConfigs { get; set; }
+    
     Task MigrateAsync();
     
     DatabaseFacade Database { get; }
