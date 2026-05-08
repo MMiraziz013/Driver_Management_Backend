@@ -10,10 +10,12 @@ namespace Driver_Management.Controllers;
 public class VehicleController : ControllerBase
 {
     private readonly IVehicleService _vehicleService;
+    private readonly IUnitOfWork _uow;
 
-    public VehicleController(IVehicleService vehicleService)
+    public VehicleController(IVehicleService vehicleService, IUnitOfWork uow)
     {
         _vehicleService = vehicleService;
+        _uow = uow;
     }
 
     [HttpGet]
@@ -39,7 +41,7 @@ public class VehicleController : ControllerBase
         var response = await _vehicleService.UpdateVehicleAsync(dto);
         return StatusCode(response.StatusCode, response);
     }
-
+    
     [HttpDelete("{id}")]
     [PermissionAuthorize(PermissionConstants.Vehicles.Manage)]
     public async Task<IActionResult> DeleteAsync(int id)

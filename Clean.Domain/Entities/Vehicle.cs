@@ -45,6 +45,18 @@ public class Vehicle
 
     public List<DriverAssignment> Assignments { get; set; } = [];
     public List<VehicleFuelAllocation> FuelAllocations { get; set; } = [];
+    
+    // ===== CAR REVENUE TRACKING =====
+
+    /// <summary>
+    /// Purchase cost of the vehicle in USD
+    /// </summary>
+    public decimal PurchaseCostUsd { get; set; }
+
+    /// <summary>
+    /// Number of months to divide purchase cost for plan calculation (default 13)
+    /// </summary>
+    public int PlanMonths { get; set; } = 13;
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

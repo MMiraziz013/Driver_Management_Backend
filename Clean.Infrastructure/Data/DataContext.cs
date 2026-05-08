@@ -38,6 +38,9 @@ public class DataContext : IdentityDbContext<User, IdentityRole<int>, int>, IDat
     public DbSet<DriverPeriodState> DriverPeriodStates { get; set; }
     public DbSet<BonusSettings> BonusSettings { get; set; }
     public DbSet<ServiceTypeBonusConfig> ServiceTypeBonusConfigs { get; set; }
+    public DbSet<ExchangeRate> ExchangeRates { get; set; }
+    public DbSet<AccountingReport> AccountingReports { get; set; }
+    public DbSet<AccountingTransaction> AccountingTransactions { get; set; }
 
 
     public async Task MigrateAsync()
@@ -65,6 +68,8 @@ public class DataContext : IdentityDbContext<User, IdentityRole<int>, int>, IDat
         builder.ApplyConfigurationsFromAssembly(typeof(DriverPeriodStateConfiguration).Assembly);
         builder.ApplyConfigurationsFromAssembly(typeof(BonusSettingsConfiguration).Assembly);
         builder.ApplyConfigurationsFromAssembly(typeof(ServiceTypeBonusConfigConfiguration).Assembly);
-
+        builder.ApplyConfigurationsFromAssembly(typeof(AccountingReportConfiguration).Assembly);
+        builder.ApplyConfigurationsFromAssembly(typeof(AccountingTransactionConfiguration).Assembly);
+        builder.ApplyConfigurationsFromAssembly(typeof(ExchangeRateConfiguration).Assembly);
     }
 }

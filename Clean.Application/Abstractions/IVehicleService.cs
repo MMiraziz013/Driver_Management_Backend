@@ -9,7 +9,7 @@ public interface IVehicleService
     Task<Response<List<GetVehicleDto>>> GetAllVehiclesAsync();
     
     Task<Response<List<GetVehicleDto>>> GetActiveAndInactiveAsync();
-    Task<Response<Vehicle>> GetVehicleByIdAsync(int id);
+    Task<Response<Vehicle?>> GetVehicleByIdAsync(int id);
     Task<Response<Vehicle>> CreateVehicleAsync(CreateVehicleDto dto);
 
     Task<Response<GetVehicleDto?>> UpdateVehicleAsync(UpdateVehicleDto dto);

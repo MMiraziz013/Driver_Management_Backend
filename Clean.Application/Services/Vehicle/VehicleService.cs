@@ -26,14 +26,16 @@ public class VehicleService : IVehicleService
                 PlateNumber = v.PlateNumber,
                 Model = v.Model,
                 Color = v.Color,
-                VehicleTypeName = v.VehicleType?.Name ?? "N/A",
+                VehicleTypeName = v.VehicleType.Name,
                 RequiredDriverCategory = v.RequiredDriverCategory.ToString(),
                 IsActive = v.IsActive,
                 FuelTankCapacity = v.FuelTankCapacity,
                 FuelConsumptionPer100Km = v.FuelConsumptionPer100Km,
                 FuelType = v.FuelType,
                 InitialFuelLevel = v.InitialFuelLevel,
-                CurrentMileage = v.CurrentMileage
+                CurrentMileage = v.CurrentMileage,
+                PurchaseCostUsd = v.PurchaseCostUsd,
+                PlanMonths = v.PlanMonths
             }).ToList();
 
             return new Response<List<GetVehicleDto>>(HttpStatusCode.OK, "Vehicles retrieved.", dtos);
@@ -49,24 +51,26 @@ public class VehicleService : IVehicleService
         try
         {
             var vehicles = await _uow.Vehicles.GetActiveAndInactiveAsync();
-        
-            var dtos = vehicles.Select(v => new GetVehicleDto
+
+            var returnedDtos = vehicles.Select(v => new GetVehicleDto
             {
                 Id = v.Id,
                 PlateNumber = v.PlateNumber,
                 Model = v.Model,
                 Color = v.Color,
-                VehicleTypeName = v.VehicleType?.Name ?? "N/A",
+                VehicleTypeName = v.VehicleType.Name,
                 RequiredDriverCategory = v.RequiredDriverCategory.ToString(),
                 IsActive = v.IsActive,
                 FuelTankCapacity = v.FuelTankCapacity,
                 FuelConsumptionPer100Km = v.FuelConsumptionPer100Km,
                 FuelType = v.FuelType,
                 InitialFuelLevel = v.InitialFuelLevel,
-                CurrentMileage = v.CurrentMileage
+                CurrentMileage = v.CurrentMileage,
+                PurchaseCostUsd = v.PurchaseCostUsd,
+                PlanMonths = v.PlanMonths
             }).ToList();
 
-            return new Response<List<GetVehicleDto>>(HttpStatusCode.OK, "Vehicles retrieved.", dtos);
+            return new Response<List<GetVehicleDto>>(HttpStatusCode.OK, "Vehicles retrieved.", returnedDtos);
         }
         catch (Exception ex)
         {
@@ -74,13 +78,13 @@ public class VehicleService : IVehicleService
         }
     }
 
-    public async Task<Response<Domain.Entities.Vehicle>> GetVehicleByIdAsync(int id)
+    public async Task<Response<Domain.Entities.Vehicle?>> GetVehicleByIdAsync(int id)
     {
         var vehicle = await _uow.Vehicles.GetByIdAsync(id);
         if (vehicle == null)
-            return new Response<Domain.Entities.Vehicle>(HttpStatusCode.NotFound, "Vehicle not found.");
+            return new Response<Domain.Entities.Vehicle?>(HttpStatusCode.NotFound, "Vehicle not found.");
 
-        return new Response<Domain.Entities.Vehicle>(HttpStatusCode.OK, vehicle);
+        return new Response<Domain.Entities.Vehicle?>(HttpStatusCode.OK, vehicle);
     }
 
     public async Task<Response<Domain.Entities.Vehicle>> CreateVehicleAsync(CreateVehicleDto dto)
@@ -172,9 +176,17 @@ public class VehicleService : IVehicleService
         {
             toUpdate.CurrentMileage = dto.CurrentMileage;
         }
-        
-        
 
+        if (dto.PurchaseCostUsd > 0)
+        {
+            toUpdate.PurchaseCostUsd = dto.PurchaseCostUsd;
+        }
+
+        if (dto.PlanMonths > 0 && dto.PlanMonths.HasValue)
+        {
+            toUpdate.PlanMonths = dto.PlanMonths.Value;
+        }
+        
         var updated = await _uow.Vehicles.Update(toUpdate);
         if (updated is null)
         {
@@ -189,7 +201,15 @@ public class VehicleService : IVehicleService
             Model = updated.Model,
             Color = updated.Color,
             VehicleTypeName = updated.VehicleType.Name,
-            RequiredDriverCategory = updated.RequiredDriverCategory.ToString()
+            RequiredDriverCategory = updated.RequiredDriverCategory.ToString(),
+            IsActive = updated.IsActive,
+            FuelTankCapacity = updated.FuelTankCapacity,
+            FuelConsumptionPer100Km = updated.FuelConsumptionPer100Km,
+            FuelType = updated.FuelType,
+            InitialFuelLevel = updated.InitialFuelLevel,
+            CurrentMileage = updated.CurrentMileage,
+            PurchaseCostUsd = updated.PurchaseCostUsd,
+            PlanMonths = updated.PlanMonths
         };
 
         return new Response<GetVehicleDto?>(HttpStatusCode.OK, returned);

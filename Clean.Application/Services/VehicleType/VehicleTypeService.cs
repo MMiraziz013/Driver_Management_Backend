@@ -75,4 +75,50 @@ public class VehicleTypeService : IVehicleTypeService
             return new Response<GetVehicleTypeDto>(HttpStatusCode.InternalServerError, new List<string> { ex.Message });
         }
     }
+
+    public async Task<Response<GetVehicleTypeDto>> UpdateVehicleTypeAsync(int id, UpdateVehicleTypeDto dto)
+    {
+        try
+        {
+            var vehicleType = await _vehicleTypeRepository.GetByIdAsync(id);
+
+            if (vehicleType == null)
+            {
+                return new Response<GetVehicleTypeDto>(HttpStatusCode.NotFound,
+                    new List<string> { $"Vehicle Type with ID {id} not found" });
+            }
+
+            // Update fields
+            if (!string.IsNullOrWhiteSpace(dto.Name))
+            {
+                vehicleType.Name = dto.Name;
+            }
+
+            if (dto.Description != null)
+            {
+                vehicleType.Description = dto.Description;
+            }
+
+            if (dto.Capacity.HasValue)
+            {
+                vehicleType.Capacity = dto.Capacity.Value;
+            }
+
+            await _uow.CompleteAsync();
+
+            var result = new GetVehicleTypeDto
+            {
+                Id = vehicleType.Id,
+                Name = vehicleType.Name,
+                Description = vehicleType.Description
+            };
+
+            return new Response<GetVehicleTypeDto>(HttpStatusCode.OK, "Vehicle Type updated.", result);
+        }
+        catch (Exception ex)
+        {
+            return new Response<GetVehicleTypeDto>(HttpStatusCode.InternalServerError,
+                new List<string> { ex.Message });
+        }
+    }
 }

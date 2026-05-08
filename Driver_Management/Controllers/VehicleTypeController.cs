@@ -34,14 +34,16 @@ public class VehicleTypeController : Controller
         return StatusCode(response.StatusCode, response);
     }
     
-    //TODO: Implement these features below
 
-    [HttpPut]
+    [HttpPut("{id}")]
     [PermissionAuthorize(PermissionConstants.VehicleTypes.Manage)]
-    public async Task<IActionResult> UpdateVehicleTypeAsync(UpdateVehicleDto dto)
+    public async Task<IActionResult> UpdateVehicleType(int id, [FromBody] UpdateVehicleTypeDto dto)
     {
-        throw new NotImplementedException();
+        var result = await _vehicleTypeService.UpdateVehicleTypeAsync(id, dto);
+        return StatusCode((int)result.StatusCode, result);
     }
+
+    //TODO: Implement these features below
 
     [HttpDelete]
     [PermissionAuthorize(PermissionConstants.VehicleTypes.Manage)]

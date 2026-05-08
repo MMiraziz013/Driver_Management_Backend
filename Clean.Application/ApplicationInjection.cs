@@ -1,7 +1,9 @@
 ﻿using Clean.Application.Abstractions;
+using Clean.Application.Services.Accounting;
 using Clean.Application.Services.Bonus;
 using Clean.Application.Services.Driver;
 using Clean.Application.Services.DriverVacation;
+using Clean.Application.Services.ExchangeRate;
 using Clean.Application.Services.Gas;
 using Clean.Application.Services.JWT;
 using Clean.Application.Services.Mapbox;
@@ -36,7 +38,11 @@ public static class ApplicationInjection
         services.AddScoped<ITripService, TripService>();
         services.AddScoped<IBonusSettingsService, BonusSettingsService>();
         services.AddScoped<IBonusCalculationService, BonusCalculationService>();
-
+        services.AddScoped<IExchangeRateService, ExchangeRateService>();
+        services.AddScoped<IAccountingUploadService, AccountingUploadService>();
+        services.AddScoped<IAnalysisReportService, AnalysisReportService>();
+        services.AddScoped<ICarRevenueReportService, CarRevenueReportService>();
+        services.AddScoped<IFarmOutReportService, FarmOutReportService>();
 
         
         services.AddHttpClient<IMapboxService, MapboxService>(client =>

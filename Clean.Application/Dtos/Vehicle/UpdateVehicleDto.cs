@@ -31,5 +31,9 @@ public class UpdateVehicleDto
     public double InitialFuelLevel { get; set; }
     
     public double CurrentMileage { get; set; }
+    
+    public decimal PurchaseCostUsd { get; set; }
+    public int? PlanMonths { get; set; }
+
 
 }

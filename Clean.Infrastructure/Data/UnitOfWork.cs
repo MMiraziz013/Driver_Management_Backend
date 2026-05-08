@@ -21,9 +21,15 @@ public class UnitOfWork : IUnitOfWork
     private IVehicleFuelAllocationRepository? _fuelAllocations;
     private IDriverPeriodStateRepository? _driverPeriodStates;
 
-    // NEW: Bonus repositories
+    // Bonus repositories
     private IBonusSettingsRepository? _bonusSettings;
     private IServiceTypeBonusConfigRepository? _serviceTypeBonusConfigs;
+    
+    // Accounting repositories
+    private IExchangeRateRepository? _exchangeRates;
+    private IAccountingReportRepository? _accountingReports;
+    private IAccountingTransactionRepository? _accountingTransactions;
+
 
     public UnitOfWork(DataContext context)
     {
@@ -49,6 +55,9 @@ public class UnitOfWork : IUnitOfWork
     // NEW: Bonus repository properties
     public IBonusSettingsRepository BonusSettings => _bonusSettings ??= new BonusSettingsRepository(_context);
     public IServiceTypeBonusConfigRepository ServiceTypeBonusConfigs => _serviceTypeBonusConfigs ??= new ServiceTypeBonusConfigRepository(_context);
+    public IExchangeRateRepository ExchangeRates => _exchangeRates ??= new ExchangeRateRepository(_context);
+    public IAccountingReportRepository AccountingReports => _accountingReports ??= new AccountingReportRepository(_context);
+    public IAccountingTransactionRepository AccountingTransactions => _accountingTransactions ??= new AccountingTransactionRepository(_context);
 
     public void RemoveRange<T>(IEnumerable<T> entities) where T : class
     {

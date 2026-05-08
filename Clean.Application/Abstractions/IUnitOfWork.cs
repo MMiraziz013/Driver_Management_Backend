@@ -22,6 +22,10 @@ public interface IUnitOfWork : IDisposable
     
     IServiceTypeBonusConfigRepository ServiceTypeBonusConfigs { get; }
     
+    IExchangeRateRepository ExchangeRates { get; }
+    IAccountingReportRepository AccountingReports { get; }
+    IAccountingTransactionRepository AccountingTransactions { get; }
+    
     void RemoveRange<T>(IEnumerable<T> entities) where T : class;
     
     Task<int> CompleteAsync(); // Effectively SaveChangesAsync()

@@ -29,6 +29,10 @@ public interface IDataContext
     public DbSet<BonusSettings>  BonusSettings { get; set; }
 
     public DbSet<ServiceTypeBonusConfig> ServiceTypeBonusConfigs { get; set; }
+
+    public DbSet<ExchangeRate> ExchangeRates { get; set; }
+    public DbSet<AccountingReport> AccountingReports { get; set; }
+    public DbSet<AccountingTransaction> AccountingTransactions { get; set; }
     
     Task MigrateAsync();
     
