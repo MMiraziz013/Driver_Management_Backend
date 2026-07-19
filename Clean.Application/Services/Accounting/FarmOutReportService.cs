@@ -44,7 +44,7 @@ public class FarmOutReportService : IFarmOutReportService
                 .ToList();
 
             // Get all vehicles to find purchase cost by vehicle type
-            var vehicles = await _uow.Vehicles.GetAllAsync();
+            var vehicles = await _uow.Vehicles.GetActiveAndInactiveAsync();
             
             // Build lookup for vehicle type to purchase cost
             // Get the first non-zero purchase cost for each vehicle type name

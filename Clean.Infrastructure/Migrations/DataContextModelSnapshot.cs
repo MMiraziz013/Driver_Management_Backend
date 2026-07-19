@@ -256,6 +256,94 @@ namespace ClassLibrary1.Migrations
                     b.ToTable("cached_locations", (string)null);
                 });
 
+            modelBuilder.Entity("Clean.Domain.Entities.Company", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Aliases")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int?>("CompanyCategoryId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("FirstSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyCategoryId");
+
+                    b.HasIndex("NormalizedName");
+
+                    b.ToTable("companies", (string)null);
+                });
+
+            modelBuilder.Entity("Clean.Domain.Entities.CompanyCategory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Color")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("company_categories", (string)null);
+                });
+
             modelBuilder.Entity("Clean.Domain.Entities.Driver", b =>
                 {
                     b.Property<int>("Id")
@@ -790,6 +878,9 @@ namespace ClassLibrary1.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(true);
 
+                    b.Property<bool>("IsSamarkandTrip")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTime>("PickUpDate")
                         .HasColumnType("timestamp with time zone");
 
@@ -915,6 +1006,9 @@ namespace ClassLibrary1.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ActiveFrom")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Color")
                         .IsRequired()
@@ -1083,6 +1177,50 @@ namespace ClassLibrary1.Migrations
                     b.ToTable("vehicle_types", (string)null);
                 });
 
+            modelBuilder.Entity("Clean.Domain.Entities.VehicleUnavailablePeriod", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("end_date");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("start_date");
+
+                    b.Property<int>("VehicleId")
+                        .HasColumnType("integer")
+                        .HasColumnName("vehicle_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VehicleId");
+
+                    b.ToTable("vehicle_unavailable_periods", (string)null);
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole<int>", b =>
                 {
                     b.Property<int>("Id")
@@ -1224,6 +1362,16 @@ namespace ClassLibrary1.Migrations
                         .IsRequired();
 
                     b.Navigation("AccountingReport");
+                });
+
+            modelBuilder.Entity("Clean.Domain.Entities.Company", b =>
+                {
+                    b.HasOne("Clean.Domain.Entities.CompanyCategory", "Category")
+                        .WithMany("Companies")
+                        .HasForeignKey("CompanyCategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Category");
                 });
 
             modelBuilder.Entity("Clean.Domain.Entities.DriverAssignment", b =>
@@ -1386,6 +1534,17 @@ namespace ClassLibrary1.Migrations
                     b.Navigation("Vehicle");
                 });
 
+            modelBuilder.Entity("Clean.Domain.Entities.VehicleUnavailablePeriod", b =>
+                {
+                    b.HasOne("Clean.Domain.Entities.Vehicle", "Vehicle")
+                        .WithMany("UnavailablePeriods")
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Vehicle");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<int>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole<int>", null)
@@ -1442,6 +1601,11 @@ namespace ClassLibrary1.Migrations
                     b.Navigation("Transactions");
                 });
 
+            modelBuilder.Entity("Clean.Domain.Entities.CompanyCategory", b =>
+                {
+                    b.Navigation("Companies");
+                });
+
             modelBuilder.Entity("Clean.Domain.Entities.Driver", b =>
                 {
                     b.Navigation("Assignments");
@@ -1480,6 +1644,8 @@ namespace ClassLibrary1.Migrations
                     b.Navigation("Assignments");
 
                     b.Navigation("FuelAllocations");
+
+                    b.Navigation("UnavailablePeriods");
                 });
 
             modelBuilder.Entity("Clean.Domain.Entities.VehicleType", b =>

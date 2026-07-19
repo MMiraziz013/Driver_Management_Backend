@@ -1,6 +1,7 @@
 ﻿using Clean.Application.Abstractions;
 using Clean.Application.Services.Accounting;
 using Clean.Application.Services.Bonus;
+using Clean.Application.Services.Company;
 using Clean.Application.Services.Driver;
 using Clean.Application.Services.DriverVacation;
 using Clean.Application.Services.ExchangeRate;
@@ -33,7 +34,7 @@ public static class ApplicationInjection
         services.AddTransient<ITripService, TripService>();
         services.AddTransient<IReportService, ReportService>();
         services.AddTransient<IServiceTypeService, ServiceTypeService>();
-        services.AddScoped<IGasService, GasService>();
+        services.AddScoped<IGasService, GasService>();  
         services.AddScoped<IDriverVacationService, DriverVacationService>();
         services.AddScoped<ITripService, TripService>();
         services.AddScoped<IBonusSettingsService, BonusSettingsService>();
@@ -43,11 +44,14 @@ public static class ApplicationInjection
         services.AddScoped<IAnalysisReportService, AnalysisReportService>();
         services.AddScoped<ICarRevenueReportService, CarRevenueReportService>();
         services.AddScoped<IFarmOutReportService, FarmOutReportService>();
+        services.AddScoped<ICompanyService, CompanyService>();
+        services.AddScoped<ICompanyRevenueReportService, CompanyRevenueReportService>();
+        services.AddScoped<IVehicleAvailabilityService, VehicleAvailabilityService>();
 
         
         services.AddHttpClient<IMapboxService, MapboxService>(client =>
         {
-            client.Timeout = TimeSpan.FromSeconds(30);
+            client.Timeout = TimeSpan.FromMinutes(5);
         });
         services.AddScoped<IMapboxService, MapboxService>();
         

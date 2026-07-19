@@ -104,13 +104,17 @@ public static class Program
             options.AddPolicy("AllowFrontend", policy =>
             {
                 policy.WithOrigins(
+                        "https://driver-management-frontend-weld.vercel.app",
+                        "https://driver-management-frontend-git-master-mmiraziz013s-projects.vercel.app",
+                        "https://driver-management-frontend-r77gc3jc5-mmiraziz013s-projects.vercel.app",
                         "http://192.168.68.123",
                         "http://192.168.68.115",
                         "http://100.118.90.57",        // Tailscale IP
                         "http://192.168.68.123:5173",  // Vite dev server
                         "http://192.168.68.123:3000",  // React dev server
                         "http://localhost:5173",
-                        "http://localhost:3000"
+                        "http://localhost:3000",
+                        "http://192.168.68.115:8080"
                     )
                     .AllowAnyMethod()
                     .AllowAnyHeader()
@@ -163,16 +167,21 @@ public static class Program
 
         // ------------ MIDDLEWARE ------------
 
+        // ------------ MIDDLEWARE ------------
+
         // Then use it:
         app.UseCors("AllowFrontend");
         
-        app.UseSwagger();
-        app.UseSwaggerUI(options =>
+        // Only enable Swagger in the Development environment
+        if (app.Environment.IsDevelopment())
         {
-            options.SwaggerEndpoint("/swagger/v1/swagger.json", "v1");
-            options.RoutePrefix = string.Empty;
-        });
-
+            app.UseSwagger();
+            app.UseSwaggerUI(options =>
+            {
+                options.SwaggerEndpoint("/swagger/v1/swagger.json", "v1");
+                options.RoutePrefix = string.Empty; 
+            });
+        }
 
         app.UseMiddleware<LoggingMiddleware>();
 

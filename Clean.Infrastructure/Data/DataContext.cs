@@ -41,6 +41,11 @@ public class DataContext : IdentityDbContext<User, IdentityRole<int>, int>, IDat
     public DbSet<ExchangeRate> ExchangeRates { get; set; }
     public DbSet<AccountingReport> AccountingReports { get; set; }
     public DbSet<AccountingTransaction> AccountingTransactions { get; set; }
+    
+    public DbSet<CompanyCategory> CompanyCategories { get; set; }
+    public DbSet<Company> Companies { get; set; }
+    
+    public DbSet<VehicleUnavailablePeriod> VehicleUnavailablePeriods { get; set; }
 
 
     public async Task MigrateAsync()
@@ -71,5 +76,8 @@ public class DataContext : IdentityDbContext<User, IdentityRole<int>, int>, IDat
         builder.ApplyConfigurationsFromAssembly(typeof(AccountingReportConfiguration).Assembly);
         builder.ApplyConfigurationsFromAssembly(typeof(AccountingTransactionConfiguration).Assembly);
         builder.ApplyConfigurationsFromAssembly(typeof(ExchangeRateConfiguration).Assembly);
+        builder.ApplyConfigurationsFromAssembly(typeof(CompanyCategoryConfiguration).Assembly);
+        builder.ApplyConfigurationsFromAssembly(typeof(Company).Assembly);
+        builder.ApplyConfigurationsFromAssembly(typeof(VehicleUnavailablePeriodConfiguration).Assembly);
     }
 }

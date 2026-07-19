@@ -22,6 +22,7 @@ public class VehicleRepository : IVehicleRepository
             .Where(v=> v.IsActive)
             .ToListAsync();
     }
+    
 
     public async Task<List<Vehicle>> GetActiveAndInactiveAsync()
     {

@@ -35,7 +35,8 @@ public class VehicleService : IVehicleService
                 InitialFuelLevel = v.InitialFuelLevel,
                 CurrentMileage = v.CurrentMileage,
                 PurchaseCostUsd = v.PurchaseCostUsd,
-                PlanMonths = v.PlanMonths
+                PlanMonths = v.PlanMonths,
+                ActiveFrom = v.ActiveFrom
             }).ToList();
 
             return new Response<List<GetVehicleDto>>(HttpStatusCode.OK, "Vehicles retrieved.", dtos);
@@ -67,7 +68,8 @@ public class VehicleService : IVehicleService
                 InitialFuelLevel = v.InitialFuelLevel,
                 CurrentMileage = v.CurrentMileage,
                 PurchaseCostUsd = v.PurchaseCostUsd,
-                PlanMonths = v.PlanMonths
+                PlanMonths = v.PlanMonths,
+                ActiveFrom = v.ActiveFrom
             }).ToList();
 
             return new Response<List<GetVehicleDto>>(HttpStatusCode.OK, "Vehicles retrieved.", returnedDtos);
@@ -105,7 +107,8 @@ public class VehicleService : IVehicleService
                 InitialFuelLevel = dto.InitialFuelLevel,
                 CurrentMileage = dto.CurrentMileage,
                 CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow,
+                ActiveFrom = dto.ActiveFrom
             };
 
             await _uow.Vehicles.AddAsync(vehicle);
@@ -186,6 +189,11 @@ public class VehicleService : IVehicleService
         {
             toUpdate.PlanMonths = dto.PlanMonths.Value;
         }
+
+        if (dto.ActiveFrom.HasValue)
+        {
+            toUpdate.ActiveFrom = dto.ActiveFrom;
+        }
         
         var updated = await _uow.Vehicles.Update(toUpdate);
         if (updated is null)
@@ -209,7 +217,8 @@ public class VehicleService : IVehicleService
             InitialFuelLevel = updated.InitialFuelLevel,
             CurrentMileage = updated.CurrentMileage,
             PurchaseCostUsd = updated.PurchaseCostUsd,
-            PlanMonths = updated.PlanMonths
+            PlanMonths = updated.PlanMonths,
+            ActiveFrom = updated.ActiveFrom,
         };
 
         return new Response<GetVehicleDto?>(HttpStatusCode.OK, returned);
@@ -224,32 +233,7 @@ public class VehicleService : IVehicleService
         }
         return new Response<bool>(HttpStatusCode.OK, isDeleted);
     }
-
-    public async Task<Response<List<Domain.Entities.Vehicle>>> CreateBulkAsync(List<CreateVehicleDto> dtos)
-    {
-        try
-        {
-            var vehicles = dtos.Select(dto => new Domain.Entities.Vehicle
-            {
-                PlateNumber = dto.PlateNumber,
-                Model = dto.Model,
-                Color = dto.Color,
-                VehicleTypeId = dto.VehicleTypeId,
-                RequiredDriverCategory = dto.RequiredDriverCategory,
-                CreatedAt = DateTime.UtcNow
-            }).ToList();
-
-            foreach (var v in vehicles) await _uow.Vehicles.AddAsync(v);
-            await _uow.CompleteAsync();
-
-            return new Response<List<Domain.Entities.Vehicle>>(HttpStatusCode.Created, $"{vehicles.Count} vehicles added.", vehicles);
-        }
-        catch (Exception ex)
-        {
-            return new Response<List<Domain.Entities.Vehicle>>(HttpStatusCode.InternalServerError, new List<string> { ex.Message });
-        }
-    }
-
+    
     public async Task<Response<bool>> ChangeStatusAsync(int id)
     {
         try

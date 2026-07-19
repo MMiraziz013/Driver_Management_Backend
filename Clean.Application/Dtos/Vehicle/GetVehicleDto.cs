@@ -38,4 +38,6 @@ public class GetVehicleDto
     public decimal PurchaseCostUsd { get; set; }
     public int PlanMonths { get; set; }
     
+    public DateTime? ActiveFrom { get; set; }
+    
 }

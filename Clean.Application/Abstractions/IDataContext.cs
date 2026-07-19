@@ -34,6 +34,10 @@ public interface IDataContext
     public DbSet<AccountingReport> AccountingReports { get; set; }
     public DbSet<AccountingTransaction> AccountingTransactions { get; set; }
     
+    public DbSet<CompanyCategory> CompanyCategories { get; set; }
+    public DbSet<Company> Companies { get; set; }
+    
+    public DbSet<VehicleUnavailablePeriod> VehicleUnavailablePeriods { get; set; }
     Task MigrateAsync();
     
     DatabaseFacade Database { get; }

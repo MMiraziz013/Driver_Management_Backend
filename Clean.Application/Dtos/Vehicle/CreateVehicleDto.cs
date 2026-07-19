@@ -22,4 +22,6 @@ public class CreateVehicleDto
     public double InitialFuelLevel { get; set; }
     
     public double CurrentMileage { get; set; }
+    
+    public DateTime? ActiveFrom { get; set; }
 }

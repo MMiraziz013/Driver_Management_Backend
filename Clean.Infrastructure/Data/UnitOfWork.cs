@@ -29,6 +29,11 @@ public class UnitOfWork : IUnitOfWork
     private IExchangeRateRepository? _exchangeRates;
     private IAccountingReportRepository? _accountingReports;
     private IAccountingTransactionRepository? _accountingTransactions;
+    private ICompanyCategoryRepository? _companyCategories;
+    private ICompanyRepository? _companies;
+    
+    private VehicleUnavailablePeriodRepository? _vehicleUnavailablePeriods;
+
 
 
     public UnitOfWork(DataContext context)
@@ -59,6 +64,15 @@ public class UnitOfWork : IUnitOfWork
     public IAccountingReportRepository AccountingReports => _accountingReports ??= new AccountingReportRepository(_context);
     public IAccountingTransactionRepository AccountingTransactions => _accountingTransactions ??= new AccountingTransactionRepository(_context);
 
+    public IVehicleUnavailablePeriodRepository VehicleUnavailablePeriods =>
+        _vehicleUnavailablePeriods ??= new VehicleUnavailablePeriodRepository(_context);
+    
+    public ICompanyCategoryRepository CompanyCategories => 
+        _companyCategories ??= new CompanyCategoryRepository(_context);
+
+    public ICompanyRepository Companies => 
+        _companies ??= new CompanyRepository(_context);
+    
     public void RemoveRange<T>(IEnumerable<T> entities) where T : class
     {
         _context.Set<T>().RemoveRange(entities);

@@ -14,17 +14,20 @@ public class AccountingController : ControllerBase
     private readonly IAnalysisReportService _analysisService;
     private readonly ICarRevenueReportService _carRevenueService;
     private readonly IFarmOutReportService _farmOutService;
+    private readonly ICompanyRevenueReportService _companyRevenueService;
 
     public AccountingController(
         IAccountingUploadService uploadService,
         IAnalysisReportService analysisService,
         ICarRevenueReportService carRevenueService,
-        IFarmOutReportService  farmOutService)
+        IFarmOutReportService  farmOutService,
+        ICompanyRevenueReportService companyRevenueService)
     {
         _uploadService = uploadService;
         _analysisService = analysisService;
         _carRevenueService = carRevenueService;
         _farmOutService = farmOutService;
+        _companyRevenueService = companyRevenueService;
     }
 
     // === UPLOAD ENDPOINTS ===
@@ -139,5 +142,35 @@ public class AccountingController : ControllerBase
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             fileName);
     }
+    
+    
+    // === COMPANY REVENUE REPORT ENDPOINTS ===
+
+    [HttpPost("company-revenue")]
+    public async Task<IActionResult> GenerateCompanyRevenueReport([FromBody] CompanyRevenueReportRequestDto request)
+    {
+        var result = await _companyRevenueService.GenerateReportAsync(request);
+        return StatusCode((int)result.StatusCode, result);
+    }
+
+    [HttpPost("company-revenue/export")]
+    public async Task<IActionResult> ExportCompanyRevenueReport([FromBody] CompanyRevenueReportRequestDto request)
+    {
+        var result = await _companyRevenueService.ExportToExcelAsync(request);
+
+        if (result.StatusCode != 200 || result.Data == null)
+        {
+            return StatusCode((int)result.StatusCode, result);
+        }
+
+        var months = string.Join("-", request.Months.OrderBy(m => m));
+        var fileName = $"Company_Revenue_{request.Year}_{months}_{DateTime.Now:yyyyMMdd}.xlsx";
+
+        return File(
+            result.Data,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            fileName);
+    }
+
 
 }

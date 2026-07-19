@@ -26,6 +26,10 @@ public interface IUnitOfWork : IDisposable
     IAccountingReportRepository AccountingReports { get; }
     IAccountingTransactionRepository AccountingTransactions { get; }
     
+    ICompanyCategoryRepository CompanyCategories { get; }
+    ICompanyRepository Companies { get; }
+    IVehicleUnavailablePeriodRepository VehicleUnavailablePeriods { get; }
+    
     void RemoveRange<T>(IEnumerable<T> entities) where T : class;
     
     Task<int> CompleteAsync(); // Effectively SaveChangesAsync()

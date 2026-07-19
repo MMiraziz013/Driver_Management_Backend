@@ -28,18 +28,16 @@ public class AnalysisReportService : IAnalysisReportService
 
             var years = request.Years.OrderBy(y => y).ToList();
             
-            // If no months specified, include all 12 months
+            // Selected months for totals calculation
             var selectedMonths = (request.Months != null && request.Months.Any())
                 ? request.Months.OrderBy(m => m).ToList()
                 : Enumerable.Range(1, 12).ToList();
 
-            // Get all transactions for the requested years
+            // All 12 months for display
+            var allMonths = Enumerable.Range(1, 12).ToList();
+
+            // Get all transactions for the requested years (ALL months)
             var allTransactions = await _uow.AccountingTransactions.GetByYearsAsync(years);
-            
-            // Filter by selected months
-            var transactions = allTransactions
-                .Where(t => selectedMonths.Contains(t.Month))
-                .ToList();
 
             // Get exchange rates
             var exchangeRates = new Dictionary<int, decimal>();
@@ -49,20 +47,21 @@ public class AnalysisReportService : IAnalysisReportService
                 exchangeRates[year] = rate?.Rate ?? 12500m;
             }
 
-            // Build monthly data (only for selected months)
+            // Build monthly data for ALL 12 months
             var monthlyData = new List<AnalysisMonthRowDto>();
-            foreach (var month in selectedMonths)
+            foreach (var month in allMonths)
             {
                 var row = new AnalysisMonthRowDto
                 {
                     Month = month,
                     MonthName = CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(month),
-                    AmountsByYear = new Dictionary<int, decimal>()
+                    AmountsByYear = new Dictionary<int, decimal>(),
+                    IsSelected = selectedMonths.Contains(month)  // Mark if selected
                 };
 
                 foreach (var year in years)
                 {
-                    var monthTotal = transactions
+                    var monthTotal = allTransactions
                         .Where(t => t.Year == year && t.Month == month)
                         .Sum(t => t.TripTotal);
 
@@ -72,26 +71,37 @@ public class AnalysisReportService : IAnalysisReportService
                 monthlyData.Add(row);
             }
 
-            // Build totals - amounts are in UZS, calculate USD
+            // Build totals
             var totals = new AnalysisTotalsDto
             {
                 TotalUsdByYear = new Dictionary<int, decimal>(),
-                TotalUzsByYear = new Dictionary<int, decimal>()
+                TotalUzsByYear = new Dictionary<int, decimal>(),
+                FullYearUsdByYear = new Dictionary<int, decimal>(),
+                FullYearUzsByYear = new Dictionary<int, decimal>()
             };
 
             foreach (var year in years)
             {
-                var yearTotalUzs = transactions
+                // Selected months total (only selected months)
+                var selectedMonthsTotalUzs = allTransactions
+                    .Where(t => t.Year == year && selectedMonths.Contains(t.Month))
+                    .Sum(t => t.TripTotal);
+
+                totals.TotalUzsByYear[year] = selectedMonthsTotalUzs;
+
+                var rate = exchangeRates.GetValueOrDefault(year, 12500m);
+                totals.TotalUsdByYear[year] = rate > 0 ? Math.Round(selectedMonthsTotalUzs / rate, 2) : 0;
+
+                // Full year total (all 12 months)
+                var fullYearTotalUzs = allTransactions
                     .Where(t => t.Year == year)
                     .Sum(t => t.TripTotal);
 
-                totals.TotalUzsByYear[year] = yearTotalUzs;
-
-                var rate = exchangeRates.GetValueOrDefault(year, 12500m);
-                totals.TotalUsdByYear[year] = rate > 0 ? Math.Round(yearTotalUzs / rate, 2) : 0;
+                totals.FullYearUzsByYear[year] = fullYearTotalUzs;
+                totals.FullYearUsdByYear[year] = rate > 0 ? Math.Round(fullYearTotalUzs / rate, 2) : 0;
             }
 
-            // Build ALL year-to-year comparisons
+            // Build year-to-year comparisons
             var comparisons = new List<AnalysisYearComparisonDto>();
 
             for (int i = 0; i < years.Count; i++)
@@ -108,7 +118,8 @@ public class AnalysisReportService : IAnalysisReportService
                         MonthlyPercentageChange = new Dictionary<int, decimal>()
                     };
 
-                    foreach (var month in selectedMonths)
+                    // Calculate percentage change for ALL months
+                    foreach (var month in allMonths)
                     {
                         var monthData = monthlyData.FirstOrDefault(m => m.Month == month);
                         var baseAmount = monthData?.AmountsByYear.GetValueOrDefault(baseYear, 0) ?? 0;
@@ -127,7 +138,7 @@ public class AnalysisReportService : IAnalysisReportService
                         comparison.MonthlyPercentageChange[month] = percentChange;
                     }
 
-                    // Total percentage change
+                    // Selected months percentage change
                     var baseTotal = totals.TotalUzsByYear.GetValueOrDefault(baseYear, 0);
                     var compareTotal = totals.TotalUzsByYear.GetValueOrDefault(compareYear, 0);
 
@@ -140,6 +151,19 @@ public class AnalysisReportService : IAnalysisReportService
                         comparison.TotalPercentageChange = 100;
                     }
 
+                    // Full year percentage change
+                    var baseFullYear = totals.FullYearUzsByYear.GetValueOrDefault(baseYear, 0);
+                    var compareFullYear = totals.FullYearUzsByYear.GetValueOrDefault(compareYear, 0);
+
+                    if (baseFullYear != 0)
+                    {
+                        comparison.FullYearPercentageChange = Math.Round(((compareFullYear - baseFullYear) / baseFullYear) * 100, 2);
+                    }
+                    else if (compareFullYear > 0)
+                    {
+                        comparison.FullYearPercentageChange = 100;
+                    }
+
                     comparisons.Add(comparison);
                 }
             }
@@ -147,8 +171,8 @@ public class AnalysisReportService : IAnalysisReportService
             var result = new AnalysisReportDto
             {
                 Years = years,
-                Months = selectedMonths,
-                MonthlyData = monthlyData,
+                Months = selectedMonths,  // Keep track of which months are selected
+                MonthlyData = monthlyData,  // Now contains all 12 months
                 Totals = totals,
                 YearComparisons = comparisons,
                 ExchangeRates = exchangeRates,
@@ -163,6 +187,7 @@ public class AnalysisReportService : IAnalysisReportService
                 new List<string> { ex.Message, ex.StackTrace ?? "" });
         }
     }
+
     public async Task<Response<byte[]>> ExportToExcelAsync(AnalysisReportRequestDto request)
     {
         try
@@ -175,6 +200,8 @@ public class AnalysisReportService : IAnalysisReportService
             }
 
             var data = reportResult.Data;
+            var selectedMonths = data.Months;
+            var isPartialYear = selectedMonths.Count < 12;
 
             using var workbook = new XLWorkbook();
             var ws = workbook.Worksheets.Add("Analysis");
@@ -188,6 +215,20 @@ public class AnalysisReportService : IAnalysisReportService
             ws.Cell(row, 1).Style.Font.FontSize = 16;
             ws.Range(row, 1, row, data.Years.Count + 1).Merge();
             row += 2;
+
+            // Selected months info (if partial)
+            if (isPartialYear)
+            {
+                var selectedMonthNames = selectedMonths
+                    .Select(m => CultureInfo.InvariantCulture.DateTimeFormat.GetAbbreviatedMonthName(m))
+                    .ToList();
+                ws.Cell(row, 1).Value = $"Selected Months: {string.Join(", ", selectedMonthNames)}";
+                ws.Cell(row, 1).Style.Font.Italic = true;
+                ws.Cell(row, 1).Style.Font.FontColor = XLColor.DarkBlue;
+                ws.Range(row, 1, row, data.Years.Count + 1).Merge();
+                row++;
+            }
+            row++;
 
             // Exchange rates info
             ws.Cell(row, 1).Value = "Exchange Rates (USD to UZS):";
@@ -225,23 +266,46 @@ public class AnalysisReportService : IAnalysisReportService
             }
             row++;
 
-            // Monthly data
+            // Monthly data - ALL 12 months, highlight selected
             foreach (var monthData in data.MonthlyData)
             {
+                var isSelected = selectedMonths.Contains(monthData.Month);
+                
                 ws.Cell(row, 1).Value = monthData.MonthName;
+                if (isSelected)
+                {
+                    ws.Cell(row, 1).Style.Font.Bold = true;
+                }
+                else
+                {
+                    ws.Cell(row, 1).Style.Font.FontColor = XLColor.Gray;
+                }
+                
                 col = 2;
                 foreach (var year in data.Years)
                 {
                     var amount = monthData.AmountsByYear.GetValueOrDefault(year, 0);
                     ws.Cell(row, col).Value = amount;
-                    ws.Cell(row, col).Style.NumberFormat.Format = "#,##0";  // No decimals for UZS
+                    ws.Cell(row, col).Style.NumberFormat.Format = "#,##0";
+                    
+                    if (isSelected)
+                    {
+                        ws.Cell(row, col).Style.Fill.BackgroundColor = XLColor.LightGoldenrodYellow;
+                    }
+                    else
+                    {
+                        ws.Cell(row, col).Style.Font.FontColor = XLColor.Gray;
+                    }
                     col++;
                 }
                 row++;
             }
 
-            // Totals row (USD)
-            ws.Cell(row, 1).Value = "TOTAL (USD)";
+            // Selected months totals
+            var selectedMonthsLabel = isPartialYear ? "SELECTED MONTHS TOTAL" : "TOTAL";
+            
+            // Selected Months Total (USD)
+            ws.Cell(row, 1).Value = $"{selectedMonthsLabel} (USD)";
             ws.Cell(row, 1).Style.Font.Bold = true;
             ws.Cell(row, 1).Style.Fill.BackgroundColor = XLColor.LightYellow;
             col = 2;
@@ -256,8 +320,8 @@ public class AnalysisReportService : IAnalysisReportService
             }
             row++;
 
-            // Totals row (UZS)
-            ws.Cell(row, 1).Value = "TOTAL (UZS)";
+            // Selected Months Total (UZS)
+            ws.Cell(row, 1).Value = $"{selectedMonthsLabel} (UZS)";
             ws.Cell(row, 1).Style.Font.Bold = true;
             ws.Cell(row, 1).Style.Fill.BackgroundColor = XLColor.LightGreen;
             col = 2;
@@ -270,9 +334,46 @@ public class AnalysisReportService : IAnalysisReportService
                 ws.Cell(row, col).Style.Fill.BackgroundColor = XLColor.LightGreen;
                 col++;
             }
+            row++;
+
+            // Full Year Totals (always show for context)
+            if (isPartialYear)
+            {
+                row++; // Empty row separator
+
+                // Full Year Total (USD)
+                ws.Cell(row, 1).Value = "FULL YEAR TOTAL (USD)";
+                ws.Cell(row, 1).Style.Font.Bold = true;
+                ws.Cell(row, 1).Style.Fill.BackgroundColor = XLColor.LightSkyBlue;
+                col = 2;
+                foreach (var year in data.Years)
+                {
+                    var total = data.Totals.FullYearUsdByYear.GetValueOrDefault(year, 0);
+                    ws.Cell(row, col).Value = total;
+                    ws.Cell(row, col).Style.NumberFormat.Format = "#,##0.00";
+                    ws.Cell(row, col).Style.Font.Bold = true;
+                    ws.Cell(row, col).Style.Fill.BackgroundColor = XLColor.LightSkyBlue;
+                    col++;
+                }
+                row++;
+
+                // Full Year Total (UZS)
+                ws.Cell(row, 1).Value = "FULL YEAR TOTAL (UZS)";
+                ws.Cell(row, 1).Style.Font.Bold = true;
+                ws.Cell(row, 1).Style.Fill.BackgroundColor = XLColor.LightCyan;
+                col = 2;
+                foreach (var year in data.Years)
+                {
+                    var total = data.Totals.FullYearUzsByYear.GetValueOrDefault(year, 0);
+                    ws.Cell(row, col).Value = total;
+                    ws.Cell(row, col).Style.NumberFormat.Format = "#,##0";
+                    ws.Cell(row, col).Style.Font.Bold = true;
+                    ws.Cell(row, col).Style.Fill.BackgroundColor = XLColor.LightCyan;
+                    col++;
+                }
+            }
             row += 3;
 
-            // === YEAR-OVER-YEAR COMPARISON ===
             // === YEAR-OVER-YEAR COMPARISON ===
             if (data.YearComparisons.Any())
             {
@@ -282,7 +383,7 @@ public class AnalysisReportService : IAnalysisReportService
                 ws.Range(row, 1, row, data.YearComparisons.Count + 1).Style.Fill.BackgroundColor = XLColor.LightCoral;
                 row++;
 
-                // Headers - show all comparison pairs
+                // Headers
                 ws.Cell(row, 1).Value = "Month";
                 ws.Cell(row, 1).Style.Font.Bold = true;
                 ws.Cell(row, 1).Style.Fill.BackgroundColor = XLColor.LightGray;
@@ -298,11 +399,22 @@ public class AnalysisReportService : IAnalysisReportService
                 }
                 row++;
 
-                // Monthly comparisons (only selected months)
-                foreach (var month in data.Months)
+                // Monthly comparisons - ALL 12 months
+                for (int month = 1; month <= 12; month++)
                 {
                     var monthName = CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(month);
+                    var isSelected = selectedMonths.Contains(month);
+                    
                     ws.Cell(row, 1).Value = monthName;
+                    if (isSelected)
+                    {
+                        ws.Cell(row, 1).Style.Font.Bold = true;
+                    }
+                    else
+                    {
+                        ws.Cell(row, 1).Style.Font.FontColor = XLColor.Gray;
+                    }
+                    
                     col = 2;
                     foreach (var comparison in data.YearComparisons)
                     {
@@ -310,25 +422,33 @@ public class AnalysisReportService : IAnalysisReportService
                         ws.Cell(row, col).Value = percentChange / 100;
                         ws.Cell(row, col).Style.NumberFormat.Format = "+0.00%;-0.00%;0%";
 
-                        if (percentChange > 0)
-                            ws.Cell(row, col).Style.Font.FontColor = XLColor.Green;
-                        else if (percentChange < 0)
-                            ws.Cell(row, col).Style.Font.FontColor = XLColor.Red;
+                        if (isSelected)
+                        {
+                            ws.Cell(row, col).Style.Fill.BackgroundColor = XLColor.LightGoldenrodYellow;
+                            if (percentChange > 0)
+                                ws.Cell(row, col).Style.Font.FontColor = XLColor.Green;
+                            else if (percentChange < 0)
+                                ws.Cell(row, col).Style.Font.FontColor = XLColor.Red;
+                        }
+                        else
+                        {
+                            ws.Cell(row, col).Style.Font.FontColor = XLColor.Gray;
+                        }
 
                         col++;
                     }
                     row++;
                 }
 
-                // Total comparison row
-                ws.Cell(row, 1).Value = "TOTAL CHANGE";
+                // Selected months total comparison row
+                ws.Cell(row, 1).Value = isPartialYear ? "SELECTED MONTHS CHANGE" : "TOTAL CHANGE";
                 ws.Cell(row, 1).Style.Font.Bold = true;
                 ws.Cell(row, 1).Style.Fill.BackgroundColor = XLColor.LightYellow;
                 col = 2;
                 foreach (var comparison in data.YearComparisons)
                 {
                     var percentChange = comparison.TotalPercentageChange;
-                    ws.Cell(row, col).Value = percentChange / 100; // Excel percentage format
+                    ws.Cell(row, col).Value = percentChange / 100;
                     ws.Cell(row, col).Style.NumberFormat.Format = "+0.00%;-0.00%;0%";
                     ws.Cell(row, col).Style.Font.Bold = true;
                     ws.Cell(row, col).Style.Fill.BackgroundColor = XLColor.LightYellow;
@@ -340,7 +460,33 @@ public class AnalysisReportService : IAnalysisReportService
 
                     col++;
                 }
+                row++;
+
+                // Full year comparison row
+                if (isPartialYear)
+                {
+                    ws.Cell(row, 1).Value = "FULL YEAR CHANGE";
+                    ws.Cell(row, 1).Style.Font.Bold = true;
+                    ws.Cell(row, 1).Style.Fill.BackgroundColor = XLColor.LightCyan;
+                    col = 2;
+                    foreach (var comparison in data.YearComparisons)
+                    {
+                        var percentChange = comparison.FullYearPercentageChange;
+                        ws.Cell(row, col).Value = percentChange / 100;
+                        ws.Cell(row, col).Style.NumberFormat.Format = "+0.00%;-0.00%;0%";
+                        ws.Cell(row, col).Style.Font.Bold = true;
+                        ws.Cell(row, col).Style.Fill.BackgroundColor = XLColor.LightCyan;
+
+                        if (percentChange > 0)
+                            ws.Cell(row, col).Style.Font.FontColor = XLColor.Green;
+                        else if (percentChange < 0)
+                            ws.Cell(row, col).Style.Font.FontColor = XLColor.Red;
+
+                        col++;
+                    }
+                }
             }
+
             // Auto-fit columns
             ws.Columns().AdjustToContents();
 

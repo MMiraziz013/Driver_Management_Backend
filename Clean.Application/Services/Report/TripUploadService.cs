@@ -4,6 +4,7 @@ using Clean.Application.Abstractions;
 using Clean.Application.Dtos.Mapbox;
 using Clean.Application.Dtos.Responses;
 using Clean.Domain.Entities;
+using Clean.Domain.Enums;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using MiniExcelLibs;
@@ -34,6 +35,26 @@ public class TripUploadService
         _mapboxService = mapboxService;
     }
 
+    // Describes the routing status of a parsed row so Phase C can apply
+    // EXACTLY the same counting your original loop did.
+    private enum RoutingState
+    {
+        Empty,    // routing cell was blank          -> noCoordinatesCount
+        Invalid,  // present but unparseable/no PU/DO -> distanceFailedCount
+        Valid     // ready for a distance calculation
+    }
+
+    // Carries everything Phase C needs without re-parsing or re-geocoding.
+    private sealed class PendingTrip
+    {
+        public required Domain.Entities.Trip Trip { get; init; }
+        public required string ServiceTypeName { get; init; }
+        public RoutingState State { get; init; }
+        public LocationWithCoordinates? PickUp { get; init; }
+        public LocationWithCoordinates? DropOff { get; init; }
+        public List<LocationWithCoordinates> Stops { get; init; } = new();
+    }
+
     public async Task<Response<string>> UploadReportAsync(IFormFile file, int periodId)
     {
         try
@@ -41,94 +62,197 @@ public class TripUploadService
             await DeleteExistingTripsAsync(periodId);
 
             await using var stream = file.OpenReadStream();
-            var rows = await stream.QueryAsync(useHeaderRow: true);
+            var rows = await stream.QueryAsync(useHeaderRow: false);
+            var rowsList = rows.ToList();
+
+            var headerRow = rowsList.ElementAtOrDefault(6);
+            if (headerRow == null)
+                return new Response<string>(HttpStatusCode.BadRequest, "Could not find headers at row 7");
 
             var vTypes = await _uow.VehicleTypes.GetAllAsync();
             var sTypes = await _uow.ServiceTypes.GetAllAsync();
+            var drivers = await _uow.Drivers.GetActiveDriversWithDetailsAsync();
 
-            int processedCount = 0;
-            int distanceCalculatedCount = 0;
-            int distanceFailedCount = 0;
-            int noCoordinatesCount = 0;
+            // ============================================================
+            //  PHASE A — parse rows, build trips, extract locations.
+            //            NO Mapbox calls here.
+            // ============================================================
+            var pending = new List<PendingTrip>();
 
-            foreach (var row in rows)
+            foreach (var row in rowsList.Skip(7))
             {
-                string vName = row.VehicleType?.ToString() ?? "";
-                string sName = row.ServiceType?.ToString() ?? "";
-                string pmtMethod = row.PmtMethod?.ToString() ?? "";
-                
-                // Now we don't skip the CASH trips. If you want to skip them, uncomment this snippet.
-                // if (pmtMethod.Equals("Cash", StringComparison.OrdinalIgnoreCase))
-                // {
-                //     Console.WriteLine($"⏭️ Skipping cash payment trip: {row.ConfNumber}");
-                //     continue;
-                // }
+                var dict = (IDictionary<string, object>)row;
+                var values = dict.Values.ToArray();
+
+                string GetVal(int index) =>
+                    index < values.Length ? values[index]?.ToString() ?? "" : "";
+
+                var confNumber = GetVal(0);
+                var pickUpDateStr = GetVal(2);
+                var garageOut = GetVal(5);
+                var garageIn = GetVal(6);
+                var company = GetVal(21);
+                var routing = GetVal(23);
+                var driver = GetVal(25);
+                var car = GetVal(26);
+                var vName = GetVal(27);
+                var sName = GetVal(28);
+                var pmtMethod = GetVal(32);
 
                 var vType = vTypes.FirstOrDefault(x => x.Name.Equals(vName, StringComparison.OrdinalIgnoreCase));
                 var sType = sTypes.FirstOrDefault(x => x.Name.Equals(sName, StringComparison.OrdinalIgnoreCase));
 
                 if (vType == null || sType == null) continue;
 
-                DateTime parsedDate = DateTime.ParseExact(row.PickUpDate.ToString(), "dd/MM/yyyy",
-                    CultureInfo.InvariantCulture);
+                var vehicleTypeId = vType.Id;
+
+                if (!DateTime.TryParseExact(pickUpDateStr, "dd/MM/yyyy", CultureInfo.InvariantCulture,
+                        DateTimeStyles.None, out DateTime parsedDate))
+                    continue;
+
+                vehicleTypeId = vehicleTypeId switch
+                {
+                    6 => 1,
+                    3 or 4 => 2,
+                    _ => vehicleTypeId
+                };
+
+                if (sName.Equals("Late Cancellation", StringComparison.OrdinalIgnoreCase))
+                {
+                    
+                }
+
+                
+                var isSamarkandDriver = false;
+
+                var tripDriver = drivers.FirstOrDefault(d=> d.FullName.Equals(driver, StringComparison.OrdinalIgnoreCase));
+
+                if (tripDriver != null && tripDriver.EmploymentType == EmploymentType.Samarkand)
+                {
+                    isSamarkandDriver = true;
+                }
 
                 var trip = new Domain.Entities.Trip
                 {
                     ReportPeriodId = periodId,
-                    ConfNumber = row.ConfNumber?.ToString() ?? "",
+                    ConfNumber = confNumber,
                     PickUpDate = DateTime.SpecifyKind(parsedDate, DateTimeKind.Utc),
-                    GarageOutTime = TimeSpan.Parse(row.GarageOutTime.ToString()),
-                    GarageInTime = TimeSpan.Parse(row.GarageInTime.ToString()),
-                    CompanyName = row.CompanyName?.ToString() ?? "Unknown",
-                    RoutingDetails = row.RoutingDetails?.ToString() ?? "N/A",
-                    VehicleTypeId = vType.Id,
+                    GarageOutTime = TimeSpan.TryParse(garageOut, out var go) ? go : TimeSpan.Zero,
+                    GarageInTime = TimeSpan.TryParse(garageIn, out var gi) ? gi : TimeSpan.Zero,
+                    CompanyName = string.IsNullOrWhiteSpace(company) ? "Unknown" : company,
+                    RoutingDetails = string.IsNullOrWhiteSpace(routing) ? "N/A" : routing,
+                    VehicleTypeId = vehicleTypeId,
                     ServiceTypeId = sType.Id,
                     IncludedInReport = true,
-                    ImportedDriverName = row.Driver?.ToString(),
-                    ImportedVehiclePlate = row.Car?.ToString(),
-                    PmtMethod = row.PmtMethod
+                    IsSamarkandTrip = isSamarkandDriver,
+                    ImportedDriverName = driver,
+                    ImportedVehiclePlate = car,
+                    PmtMethod = pmtMethod
                 };
 
-                // Calculate distance
-                var routingDetails = row.RoutingDetails?.ToString() ?? "";
-                bool coordinatesFound = true;
+                // Parse routing ONCE here (cheap, no I/O) and classify it.
+                var state = RoutingState.Empty;
+                LocationWithCoordinates? pickUp = null;
+                LocationWithCoordinates? dropOff = null;
+                var stops = new List<LocationWithCoordinates>();
 
-                if (!string.IsNullOrWhiteSpace(routingDetails))
+                if (!string.IsNullOrWhiteSpace(routing))
                 {
+                    state = RoutingState.Invalid;
                     try
                     {
-                        var distanceResult = await CalculateTripDistanceAsync(
-                            routingDetails,
-                            trip.GetStartDateTime(),
-                            trip.GetEndDateTime(),
-                            sType.Name);
-
-                        if (distanceResult.StatusCode == 200)
+                        var parsed = RoutingDetailsParser.Parse(routing);
+                        if (parsed.PickUp != null && !string.IsNullOrWhiteSpace(parsed.PickUp.Address) &&
+                            parsed.DropOff != null && !string.IsNullOrWhiteSpace(parsed.DropOff.Address))
                         {
-                            trip.DistanceKm = distanceResult.Data;
-                            distanceCalculatedCount++;
+                            pickUp = parsed.PickUp;
+                            dropOff = parsed.DropOff;
+                            if (parsed.Stops != null) stops.AddRange(parsed.Stops);
+                            state = RoutingState.Valid;
                         }
-                        else
+                    }
+                    catch
+                    {
+                        state = RoutingState.Invalid;
+                    }
+                }
+
+                pending.Add(new PendingTrip
+                {
+                    Trip = trip,
+                    ServiceTypeName = sType.Name,
+                    State = state,
+                    PickUp = pickUp,
+                    DropOff = dropOff,
+                    Stops = stops
+                });
+            }
+
+            // ============================================================
+            //  PHASE B — resolve EVERY address across the whole sheet, once.
+            //            Office has explicit coords, so it's skipped here.
+            // ============================================================
+            var allAddresses = pending
+                .Where(p => p.State == RoutingState.Valid)
+                .SelectMany(p => p.Stops.Prepend(p.DropOff!).Prepend(p.PickUp!))
+                .Where(loc => loc is { Latitude: null } && !string.IsNullOrWhiteSpace(loc.Address))
+                .Select(loc => loc.Address);
+
+            var coordinateMap = await _mapboxService.ResolveAddressesAsync(allAddresses);
+
+            // ============================================================
+            //  PHASE C — compute distances from the in-memory map. No geocoding.
+            // ============================================================
+            var processedCount = 0;
+            var distanceCalculatedCount = 0;
+            var distanceFailedCount = 0;
+            var noCoordinatesCount = 0;
+
+            foreach (var p in pending)
+            {
+                bool coordinatesFound = true;
+
+                switch (p.State)
+                {
+                    case RoutingState.Empty:
+                        coordinatesFound = false;
+                        noCoordinatesCount++;
+                        break;
+
+                    case RoutingState.Invalid:
+                        coordinatesFound = false;
+                        distanceFailedCount++;
+                        break;
+
+                    case RoutingState.Valid:
+                        try
+                        {
+                            var distanceResult = await CalculateTripDistanceAsync(
+                                p.PickUp!, p.DropOff!, p.Stops,
+                                p.Trip.GetStartDateTime(), p.Trip.GetEndDateTime(),
+                                p.ServiceTypeName, coordinateMap);
+
+                            if (distanceResult.StatusCode == 200)
+                            {
+                                p.Trip.DistanceKm = distanceResult.Data;
+                                distanceCalculatedCount++;
+                            }
+                            else
+                            {
+                                distanceFailedCount++;
+                                coordinatesFound = false;
+                            }
+                        }
+                        catch
                         {
                             distanceFailedCount++;
                             coordinatesFound = false;
                         }
-                    }
-                    catch (Exception ex)
-                    {
-                        distanceFailedCount++;
-                        coordinatesFound = false;
-                        Console.WriteLine($"Error calculating distance: {ex.Message}");
-                    }
-                }
-                else
-                {
-                    coordinatesFound = false;
-                    noCoordinatesCount++;
+                        break;
                 }
 
-                trip.CoordinatesResolved = coordinatesFound;
-                await _uow.Trips.AddAsync(trip);
+                p.Trip.CoordinatesResolved = coordinatesFound;
+                await _uow.Trips.AddAsync(p.Trip);
                 processedCount++;
             }
 
@@ -160,31 +284,28 @@ public class TripUploadService
                 .ToListAsync();
 
             if (existingAssignments.Any())
-            {
                 _uow.Context.DriverAssignments.RemoveRange(existingAssignments);
-            }
 
             _uow.Context.Trips.RemoveRange(existingTrips);
             await _uow.CompleteAsync();
         }
     }
 
+    /// <summary>
+    /// Distance for one trip. Parsing/geocoding already done — this only routes
+    /// pre-resolved coordinates through the Directions API via coordinateMap.
+    /// </summary>
     private async Task<Response<double>> CalculateTripDistanceAsync(
-        string routingDetails,
+        LocationWithCoordinates pickUp,
+        LocationWithCoordinates dropOff,
+        List<LocationWithCoordinates> stops,
         DateTime tripStart,
         DateTime tripEnd,
-        string serviceTypeName)
+        string serviceTypeName,
+        IReadOnlyDictionary<string, (double Lat, double Lon)> coordinateMap)
     {
         try
         {
-            var parsed = RoutingDetailsParser.Parse(routingDetails);
-
-            if (parsed.PickUp == null || string.IsNullOrWhiteSpace(parsed.PickUp.Address) ||
-                parsed.DropOff == null || string.IsNullOrWhiteSpace(parsed.DropOff.Address))
-            {
-                return new Response<double>(HttpStatusCode.BadRequest, "Missing pickup or dropoff");
-            }
-
             bool isFieldTrip = serviceTypeName.Equals("Field Trip", StringComparison.OrdinalIgnoreCase);
             bool isRoundTrip = serviceTypeName.Equals("Round Trip", StringComparison.OrdinalIgnoreCase);
             bool isCustomItinerary = serviceTypeName.Equals("Custom Itinerary", StringComparison.OrdinalIgnoreCase);
@@ -195,23 +316,20 @@ public class TripUploadService
             {
                 // Field Trip: route as-is (no office routing)
                 var result = await _mapboxService.CalculateDistanceAsync(
-                    parsed.PickUp, parsed.DropOff, parsed.Stops ?? new List<LocationWithCoordinates>());
-                
+                    pickUp, dropOff, stops, coordinateMap);
+
                 if (result.StatusCode == 200)
                     apiDistance = result.Data;
             }
             else
             {
-                // Regular trips: Office → PickUp → Stops → DropOff → Office
-                var fullRouteStops = new List<LocationWithCoordinates> { parsed.PickUp };
-                
-                if (parsed.Stops != null)
-                    fullRouteStops.AddRange(parsed.Stops);
-                
-                fullRouteStops.Add(parsed.DropOff);
+                // Regular trips: Office -> PickUp -> Stops -> DropOff -> Office
+                var fullRouteStops = new List<LocationWithCoordinates> { pickUp };
+                fullRouteStops.AddRange(stops);
+                fullRouteStops.Add(dropOff);
 
                 var result = await _mapboxService.CalculateDistanceAsync(
-                    OFFICE_LOCATION, OFFICE_LOCATION, fullRouteStops);
+                    OFFICE_LOCATION, OFFICE_LOCATION, fullRouteStops, coordinateMap);
 
                 if (result.StatusCode == 200)
                     apiDistance = result.Data;
@@ -224,17 +342,11 @@ public class TripUploadService
             double finalDistance;
 
             if (isRoundTrip)
-            {
                 finalDistance = apiDistance > 0 ? apiDistance : durationEstimate;
-            }
             else if (isCustomItinerary)
-            {
                 finalDistance = Math.Max(apiDistance, durationEstimate);
-            }
             else
-            {
                 finalDistance = apiDistance > 0 ? apiDistance : durationEstimate;
-            }
 
             return new Response<double>(HttpStatusCode.OK, Math.Round(finalDistance, 2));
         }

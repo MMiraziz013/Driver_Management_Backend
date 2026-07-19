@@ -18,6 +18,14 @@ public class CachedLocationRepository : ICachedLocationRepository
         return await _context.CachedLocations
             .FirstOrDefaultAsync(c => c.AddressName == address);
     }
+    
+    public async Task<List<CachedLocation>> GetByAddressesAsync(IEnumerable<string> addresses)
+    {
+        var keys = addresses.ToList();
+        return await _context.CachedLocations
+            .Where(c => keys.Contains(c.AddressName))
+            .ToListAsync();
+    }
 
     public async Task AddAsync(CachedLocation location)
     {

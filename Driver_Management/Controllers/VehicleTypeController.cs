@@ -35,7 +35,7 @@ public class VehicleTypeController : Controller
     }
     
 
-    [HttpPut("{id}")]
+    [HttpPut("{id:int}")]
     [PermissionAuthorize(PermissionConstants.VehicleTypes.Manage)]
     public async Task<IActionResult> UpdateVehicleType(int id, [FromBody] UpdateVehicleTypeDto dto)
     {

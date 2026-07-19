@@ -5,9 +5,7 @@ namespace Clean.Domain.Entities;
 public class Trip
 {
     public int Id { get; set; }
-
     public string? ConfNumber { get; set; } = string.Empty;
-    
     public DateTime PickUpDate { get; set; }
     public TimeSpan GarageOutTime { get; set; }
     public TimeSpan GarageInTime { get; set; }
@@ -27,6 +25,7 @@ public class Trip
     public ReportPeriod ReportPeriod { get; set; } = null!;
 
     public bool IncludedInReport { get; set; } = true;
+    public bool IsSamarkandTrip { get; set; } = false;
     
     public string? ImportedDriverName { get; set; }
     
@@ -39,8 +38,7 @@ public class Trip
     [NotMapped]
     public bool IsCashTrip => PmtMethod?.Contains("Cash", StringComparison.OrdinalIgnoreCase) == true 
                               || PmtMethod?.Contains("Наличные", StringComparison.OrdinalIgnoreCase) == true;
-
-
+    
     public List<DriverAssignment> Assignments { get; set; } = new();
     
     // Correct way to combine Date and Time:

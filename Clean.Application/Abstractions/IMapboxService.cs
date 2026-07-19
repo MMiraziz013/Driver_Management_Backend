@@ -5,17 +5,13 @@ namespace Clean.Application.Abstractions;
 
 public interface IMapboxService
 {
-    /// <summary>
-    /// Calculate distance between pickup and dropoff addresses (with optional stops)
-    /// Returns distance in KILOMETERS
-    /// </summary>
     Task<Response<double>> CalculateDistanceAsync(
         LocationWithCoordinates pickup,
         LocationWithCoordinates dropoff,
-        List<LocationWithCoordinates>? stops = null);
-    /// <summary>
-    /// Geocode an address to latitude/longitude coordinates
-    /// Returns (Latitude, Longitude)
-    /// </summary>
+        List<LocationWithCoordinates>? stops = null,
+        IReadOnlyDictionary<string, (double Lat, double Lon)>? coordinateMap = null);
+
     Task<Response<(double Lat, double Lon)>> GeocodeAddressAsync(string address);
+
+    Task<Dictionary<string, (double Lat, double Lon)>> ResolveAddressesAsync(IEnumerable<string> rawAddresses);
 }

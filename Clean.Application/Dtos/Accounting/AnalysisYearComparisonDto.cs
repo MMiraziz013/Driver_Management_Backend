@@ -2,23 +2,15 @@ namespace Clean.Application.Dtos.Accounting;
 
 public class AnalysisYearComparisonDto
 {
-    /// <summary>
-    /// Base year for comparison
-    /// </summary>
     public int BaseYear { get; set; }
-    
-    /// <summary>
-    /// Comparison year
-    /// </summary>
     public int CompareYear { get; set; }
     
-    /// <summary>
-    /// Monthly percentage changes: { 1: 15.5, 2: -10.2, ... }
-    /// </summary>
+    // Monthly percentage changes (selected months only)
     public Dictionary<int, decimal> MonthlyPercentageChange { get; set; } = new();
     
-    /// <summary>
-    /// Overall percentage change
-    /// </summary>
+    // Selected months total percentage change
     public decimal TotalPercentageChange { get; set; }
+    
+    // Full year percentage change
+    public decimal FullYearPercentageChange { get; set; }
 }

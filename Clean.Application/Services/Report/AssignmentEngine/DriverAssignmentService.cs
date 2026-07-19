@@ -27,7 +27,7 @@ public class DriverAssignmentService
     {
         _uow = uow;
         _driverFilters = new DriverFilters();
-        _vehicleFilters = new VehicleFilters(_driverFilters);
+        _vehicleFilters = new VehicleFilters(_driverFilters, uow);  // Pass IUnitOfWork
         _prioritization = new DriverPrioritization();
         _stateTracker = new DriverStateTracker();
     }
@@ -50,15 +50,39 @@ public class DriverAssignmentService
                     "Cannot run assignment on a finalized period. Revert finalization first.");
             }
 
+            // Load vehicle unavailable periods for this period
+            await _vehicleFilters.LoadUnavailablePeriodsForRangeAsync(period.StartDate, period.EndDate);
+
             // Delete existing assignments
             await DeleteExistingAssignmentsAsync(period);
 
             var drivers = (await _uow.Drivers.GetActiveDriversWithDetailsAsync()).ToList();
-            var vehicles = (await _uow.Vehicles.GetAllAsync()).ToList();
+            var allVehicles = (await _uow.Vehicles.GetAllAsync()).ToList();
+            
+            // Filter vehicles: must be active AND available in this period
+            var vehicles = allVehicles
+                .Where(v => v.IsActive)
+                .Where(v => _vehicleFilters.IsVehicleAvailableInPeriod(v, period.StartDate, period.EndDate))
+                .ToList();
+            
+            Console.WriteLine($"Vehicles available for period: {vehicles.Count} (out of {allVehicles.Count} total)");
+            
+            // Log any vehicles excluded due to ActiveFrom or UnavailablePeriods
+            var excludedVehicles = allVehicles
+                .Where(v => v.IsActive)
+                .Where(v => !_vehicleFilters.IsVehicleAvailableInPeriod(v, period.StartDate, period.EndDate))
+                .ToList();
+            
+            if (excludedVehicles.Any())
+            {
+                Console.WriteLine($"Vehicles excluded (ActiveFrom/Unavailable): {string.Join(", ", excludedVehicles.Select(v => v.PlateNumber))}");
+            }
+
             var trips = period.Trips.OrderBy(t => t.PickUpDate).ThenBy(t => t.GarageOutTime).ToList();
             
             // excluding cash trips
             trips = trips.ExcludeCashTrips().ToList();
+            
             // Initialize tracking
             var vehicleWorkload = vehicles.ToDictionary(v => v.Id, v => 0);
             var driverWorkload = drivers.ToDictionary(d => d.Id, d => 0);
@@ -76,11 +100,14 @@ public class DriverAssignmentService
             // Separate Field Trips from regular trips
             var fieldTrips = trips
                 .Where(t => t.ServiceType?.Name.Equals("Field Trip", StringComparison.OrdinalIgnoreCase) ?? false)
+                .Where(t=> !t.IsSamarkandTrip) // removing samarkand trips not to assign trips to them.
                 .ToList();
 
             var regularTrips = trips
                 .Where(t => !(t.ServiceType?.Name.Equals("Field Trip", StringComparison.OrdinalIgnoreCase) ?? false))
+                .Where(t=> !t.IsSamarkandTrip) // removing samarkand trips not to assign trips to them.
                 .ToList();
+            
 
             // PASS 1: Pre-assign Field Trips
             Console.WriteLine($"\n=== PASS 1: PRE-ASSIGNING {fieldTrips.Count} FIELD TRIPS ===");
@@ -140,6 +167,13 @@ public class DriverAssignmentService
             var fVehicle = vehicles.FirstOrDefault(v => 
                 v.PlateNumber.Equals(plateNumber, StringComparison.OrdinalIgnoreCase));
 
+            // Also check if the vehicle is available on this specific trip date
+            if (fVehicle != null && !_vehicleFilters.IsVehicleAvailableOnDate(fVehicle, trip.PickUpDate))
+            {
+                Console.WriteLine($"   ⚠️ Vehicle {fVehicle.PlateNumber} unavailable on {trip.PickUpDate:yyyy-MM-dd}");
+                fVehicle = null; // Treat as not found
+            }
+
             if (fDriver != null && fVehicle != null)
             {
                 var assignment = new DriverAssignment
@@ -157,8 +191,10 @@ public class DriverAssignmentService
                 newAssignments.Add(assignment);
 
                 // Track stats
-                driverWorkload[fDriver.Id]++;
-                vehicleWorkload[fVehicle.Id]++;
+                if (driverWorkload.ContainsKey(fDriver.Id))
+                    driverWorkload[fDriver.Id]++;
+                if (vehicleWorkload.ContainsKey(fVehicle.Id))
+                    vehicleWorkload[fVehicle.Id]++;
                 
                 if (!vehicleDriverCount.ContainsKey(fVehicle.Id))
                     vehicleDriverCount[fVehicle.Id] = new HashSet<int>();
@@ -174,6 +210,12 @@ public class DriverAssignmentService
             }
             else
             {
+                var reason = fDriver == null && fVehicle == null 
+                    ? "Driver/Vehicle Not Found" 
+                    : fDriver == null 
+                        ? "Driver Not Found" 
+                        : "Vehicle Not Found or Unavailable";
+                        
                 newAssignments.Add(new DriverAssignment
                 {
                     TripId = trip.Id,
@@ -181,8 +223,10 @@ public class DriverAssignmentService
                     Trip = trip,
                     HasConflict = true,
                     AssignmentType = AssignmentType.Manual,
-                    Notes = "Field Trip - Driver/Vehicle Not Found"
+                    Notes = $"Field Trip - {reason}"
                 });
+                
+                Console.WriteLine($"   ✗ Conflict: {reason}");
             }
         }
 
@@ -210,7 +254,7 @@ public class DriverAssignmentService
             Domain.Entities.Driver? selectedDriver = null;
             Domain.Entities.Vehicle? selectedVehicle = null;
 
-            // Get available vehicles
+            // Get available vehicles (already filtered by availability in GetAvailableVehicles)
             var availableVehicles = _vehicleFilters.GetAvailableVehicles(
                 trip, vehicles, newAssignments, vehicleWorkload);
 
@@ -441,19 +485,19 @@ public class DriverAssignmentService
             .Count();
 
         return $@"
-                === ASSIGNMENT COMPLETE ===
-                Total: {totalTrips} | Auto: {autoAssignedCount} | Field Trips: {fieldTripCount} | Conflicts: {conflictCount}
+        === ASSIGNMENT COMPLETE ===
+        Total: {totalTrips} | Auto: {autoAssignedCount} | Field Trips: {fieldTripCount} | Conflicts: {conflictCount}
 
-                DRIVER BALANCE ({activeDriverWorkloads.Count} drivers active):
-                • Range: {dMin}-{dMax} trips (spread: {dMax - dMin})
-                • Average: {dAvg:F1} trips/driver
+        DRIVER BALANCE ({activeDriverWorkloads.Count} drivers active):
+        - Range: {dMin}-{dMax} trips (spread: {dMax - dMin})
+        - Average: {dAvg:F1} trips/driver
 
-                VEHICLE BALANCE ({activeVehicleWorkloads.Count} vehicles active):
-                • Range: {vMin}-{vMax} trips (spread: {vMax - vMin})
-                • Average: {vAvg:F1} trips/vehicle
+        VEHICLE BALANCE ({activeVehicleWorkloads.Count} vehicles active):
+        - Range: {vMin}-{vMax} trips (spread: {vMax - vMin})
+        - Average: {vAvg:F1} trips/vehicle
 
-                MAX DRIVERS PER VEHICLE: {(vehiclesOverLimit > 0 ? $"⚠️ {vehiclesOverLimit} vehicle(s) exceed limit" : "✓ All compliant")}";
-                    }
+        MAX DRIVERS PER VEHICLE: {(vehiclesOverLimit > 0 ? $"⚠️ {vehiclesOverLimit} vehicle(s) exceed limit" : "✓ All compliant")}";
+    }
 
     /// <summary>
     /// Extract plate number from format: "car_type(plate_number)"

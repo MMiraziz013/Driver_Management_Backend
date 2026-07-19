@@ -57,9 +57,18 @@ public class Vehicle
     /// Number of months to divide purchase cost for plan calculation (default 13)
     /// </summary>
     public int PlanMonths { get; set; } = 13;
-
+    
+    /// <summary>
+    /// Date when this vehicle became active/available for assignments.
+    /// Trips before this date won't be assigned to this vehicle.
+    /// </summary>
+    public DateTime? ActiveFrom { get; set; }
+    
+    
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    
+    public virtual ICollection<VehicleUnavailablePeriod> UnavailablePeriods { get; set; } = new List<VehicleUnavailablePeriod>();
 
     // ===== HELPER METHODS =====
     

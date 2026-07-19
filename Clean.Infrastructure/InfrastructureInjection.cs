@@ -48,6 +48,9 @@ public static class InfrastructureInjection
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IBonusSettingsRepository, BonusSettingsRepository>();
         services.AddScoped<IServiceTypeBonusConfigRepository, ServiceTypeBonusConfigRepository>();
+        services.AddScoped<ICompanyCategoryRepository, CompanyCategoryRepository>();
+        services.AddScoped<ICompanyRepository, CompanyRepository>();
+        services.AddScoped<IVehicleUnavailablePeriodRepository, VehicleUnavailablePeriodRepository>();
         return services;
     }
 }

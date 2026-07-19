@@ -23,10 +23,14 @@ public class GasService : IGasService
 {
     private readonly IUnitOfWork _uow;
 
+
     // Fuel type constants (Cyrillic)
     private const string FUEL_AI92 = "АИ-92";
     private const string FUEL_AI95 = "АИ-95";
     private const string FUEL_DIESEL = "ДТ";
+    
+    private Dictionary<int, List<(DateTime Start, DateTime End)>>? _unavailablePeriodsCache;
+
 
     // Safety thresholds
     private const double MIN_FUEL_RESERVE = 5.0;
@@ -408,8 +412,14 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
                     result.Errors.Add("Report period not found");
                     return new Response<FuelCalculationResultDto>(HttpStatusCode.NotFound, result);
                 }
+                
+                await LoadUnavailablePeriodsAsync(period.StartDate, period.EndDate);
 
-                var vehicles = await _uow.Vehicles.GetAllAsync();
+
+                var vehicleEntities = await _uow.Vehicles.GetAllAsync();
+
+                var vehicles =
+                    vehicleEntities.Where(v => IsVehicleAvailableInPeriod(v, period.StartDate, period.EndDate)).ToList();
 
                 // 2. Delete existing allocations and reset purchases
                 var existingAllocations = await _uow.FuelAllocations.GetByPeriodIdAsync(periodId);
@@ -439,13 +449,23 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
                 // 3. Build vehicle fuel tracking objects
                 var vehicleFuelTrackers = new Dictionary<int, VehicleFuelTracker>();
 
-                foreach (var vehicle in vehicles.Where(v =>
-                             !string.IsNullOrEmpty(v.FuelType) &&
-                             !v.FuelType.Equals("Electric", StringComparison.OrdinalIgnoreCase) &&
-                             !v.FuelType.Equals("Электро", StringComparison.OrdinalIgnoreCase)))
+                // Filter vehicles: must have fuel type, not electric, and be active during the period
+                var eligibleVehicles = vehicles.Where(v =>
+                        v.IsActive &&
+                        !string.IsNullOrEmpty(v.FuelType) &&
+                        !v.FuelType.Equals("Electric", StringComparison.OrdinalIgnoreCase) &&
+                        !v.FuelType.Equals("Электро", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                Console.WriteLine($"Eligible vehicles for fuel allocation: {eligibleVehicles.Count} " +
+                                  $"(filtered by IsActive, FuelType, and ActiveFrom date)");
+
+                foreach (var vehicle in eligibleVehicles)
                 {
                     var vehicleTrips = period.Trips
                         .Where(t => t.Assignments.Any(a => a.VehicleId == vehicle.Id && !a.HasConflict))
+                        .Where(t => IsVehicleAvailableOnDate(vehicle, t.PickUpDate))
+                        .Where(t=> !t.IsSamarkandTrip) // excluding samarkand trips
                         .ToList();
                     
                     // excluding cash trips
@@ -957,6 +977,9 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
                 return new Response<FuelCalculationResultDto>(HttpStatusCode.NotFound, result);
             }
 
+            // Load unavailable periods cache
+            await LoadUnavailablePeriodsAsync(period.StartDate, period.EndDate);
+
             var vehicles = await _uow.Vehicles.GetAllAsync();
             var gasPurchases = await _uow.GasPurchases.GetByPeriodIdAsync(periodId);
 
@@ -968,12 +991,15 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
             }
 
             foreach (var vehicle in vehicles.Where(v => 
+                         v.IsActive &&
                          !string.IsNullOrEmpty(v.FuelType) && 
                          !v.FuelType.Equals("Electric", StringComparison.OrdinalIgnoreCase) &&
-                         !v.FuelType.Equals("Электро", StringComparison.OrdinalIgnoreCase)))
+                         !v.FuelType.Equals("Электро", StringComparison.OrdinalIgnoreCase) &&
+                         IsVehicleAvailableInPeriod(v, period.StartDate, period.EndDate)))
             {
                 var vehicleTrips = period.Trips
                     .Where(t => t.Assignments.Any(a => a.VehicleId == vehicle.Id && !a.HasConflict))
+                    .Where(t => IsVehicleAvailableOnDate(vehicle, t.PickUpDate))
                     .ToList();
 
                 // excluding cash trips
@@ -983,8 +1009,11 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
                 double fuelNeeded = vehicle.CalculateFuelConsumption(totalDistance);
                 double endingLevel = vehicle.InitialFuelLevel - fuelNeeded;
 
-                var sameTypePurchases = gasPurchases.Where(p => p.FuelType.ToLower() == vehicle.FuelType.ToLower()).Sum(p => p.LitersAmount);
-                var sameTypeVehicles = vehicles.Count(v => v.FuelType.ToLower() == vehicle.FuelType.ToLower());
+                var sameTypePurchases = gasPurchases.Where(p => AreFuelTypesCompatible(vehicle.FuelType, p.FuelType)).Sum(p => p.LitersAmount);
+                var sameTypeVehicles = vehicles.Count(v => 
+                    v.IsActive && 
+                    AreFuelTypesCompatible(v.FuelType, vehicle.FuelType) &&
+                    IsVehicleAvailableInPeriod(v, period.StartDate, period.EndDate));
                 double estimatedAllocation = sameTypeVehicles > 0 ? sameTypePurchases / sameTypeVehicles : 0;
 
                 var status = new VehicleFuelStatusDto
@@ -1029,7 +1058,6 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
                 new List<string> { ex.Message });
         }
     }
-
     public async Task<Response<string>> ManualFuelAllocationAsync(ManualFuelAllocationRequest request)
     {
         try
@@ -1093,18 +1121,24 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
             if (period == null)
                 return new Response<List<VehicleFuelStatusDto>>(HttpStatusCode.NotFound, "Period not found");
 
+            // Load unavailable periods cache
+            await LoadUnavailablePeriodsAsync(period.StartDate, period.EndDate);
+
             var vehicles = await _uow.Vehicles.GetAllAsync();
             var allocations = await _uow.FuelAllocations.GetByPeriodIdAsync(periodId);
 
             var statuses = new List<VehicleFuelStatusDto>();
 
             foreach (var vehicle in vehicles.Where(v => 
-                         !string.IsNullOrEmpty(v.FuelType) && 
+                         v.IsActive &&
+                         !string.IsNullOrEmpty(v.FuelType) &&
                          !v.FuelType.Equals("Electric", StringComparison.OrdinalIgnoreCase) &&
-                         !v.FuelType.Equals("Электро", StringComparison.OrdinalIgnoreCase)))
+                         !v.FuelType.Equals("Электро", StringComparison.OrdinalIgnoreCase) &&
+                         IsVehicleAvailableInPeriod(v, period.StartDate, period.EndDate)))
             {
                 var vehicleTrips = period.Trips
                     .Where(t => t.Assignments.Any(a => a.VehicleId == vehicle.Id && !a.HasConflict))
+                    .Where(t => IsVehicleAvailableOnDate(vehicle, t.PickUpDate))
                     .ToList();
                 
                 // excluding cash trips
@@ -1175,7 +1209,6 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
                 new List<string> { ex.Message });
         }
     }
-
     public async Task<Response<FuelBalancePreviewDto>> GetVehicleFuelBalanceAsync(int vehicleId, int periodId)
     {
         try
@@ -1342,6 +1375,9 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
             var gasPurchases = await _uow.GasPurchases.GetByPeriodIdAsync(periodId);
             var periodWithTrips = await _uow.ReportPeriods.GetWithAssignmentsAsync(periodId);
 
+            // Load unavailable periods cache
+            await LoadUnavailablePeriodsAsync(period.StartDate, period.EndDate);
+
             var result = new FuelFinalizationResultDto
             {
                 PeriodId = periodId,
@@ -1351,13 +1387,16 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
 
             // 5. Calculate final fuel level for each vehicle
             foreach (var vehicle in vehicles.Where(v => 
-                !string.IsNullOrEmpty(v.FuelType) &&
-                !v.FuelType.Equals("Electric", StringComparison.OrdinalIgnoreCase) &&
-                !v.FuelType.Equals("Электро", StringComparison.OrdinalIgnoreCase)))
+                         v.IsActive &&
+                         !string.IsNullOrEmpty(v.FuelType) &&
+                         !v.FuelType.Equals("Electric", StringComparison.OrdinalIgnoreCase) &&
+                         !v.FuelType.Equals("Электро", StringComparison.OrdinalIgnoreCase) &&
+                         IsVehicleAvailableInPeriod(v, period.StartDate, period.EndDate)))
             {
                 // Get trips for this vehicle in this period
                 var vehicleTrips = periodWithTrips!.Trips
                     .Where(t => t.Assignments.Any(a => a.VehicleId == vehicle.Id && !a.HasConflict))
+                    .Where(t => IsVehicleAvailableOnDate(vehicle, t.PickUpDate))
                     .ToList();
                 
                 // excluding cash trips
@@ -1378,8 +1417,6 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
                 double finalFuelLevel = previousInitial + fuelAllocated - fuelConsumed;
 
                 // Clamp to valid range (0 to tank capacity)
-                // Note: We allow negative values to show deficit, but for next period's initial,
-                // we should probably floor at 0 (you can't start with negative fuel)
                 double newInitialForNextPeriod = Math.Max(0, Math.Min(finalFuelLevel, vehicle.FuelTankCapacity));
 
                 // Track the update
@@ -1430,7 +1467,6 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
             );
         }
     }
-
     /// <summary>
     /// Preview what finalization would do without actually saving changes.
     /// Useful for showing user the impact before they confirm.
@@ -1468,6 +1504,9 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
             var vehicles = await _uow.Vehicles.GetAllAsync();
             var periodWithTrips = await _uow.ReportPeriods.GetWithAssignmentsAsync(periodId);
 
+            // Load unavailable periods cache
+            await LoadUnavailablePeriodsAsync(period.StartDate, period.EndDate);
+
             var result = new FuelFinalizationResultDto
             {
                 PeriodId = periodId,
@@ -1477,12 +1516,15 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
             };
 
             foreach (var vehicle in vehicles.Where(v => 
-                !string.IsNullOrEmpty(v.FuelType) &&
-                !v.FuelType.Equals("Electric", StringComparison.OrdinalIgnoreCase) &&
-                !v.FuelType.Equals("Электро", StringComparison.OrdinalIgnoreCase)))
+                         v.IsActive &&
+                         !string.IsNullOrEmpty(v.FuelType) && 
+                         !v.FuelType.Equals("Electric", StringComparison.OrdinalIgnoreCase) &&
+                         !v.FuelType.Equals("Электро", StringComparison.OrdinalIgnoreCase) &&
+                         IsVehicleAvailableInPeriod(v, period.StartDate, period.EndDate)))
             {
                 var vehicleTrips = periodWithTrips!.Trips
                     .Where(t => t.Assignments.Any(a => a.VehicleId == vehicle.Id && !a.HasConflict))
+                    .Where(t => IsVehicleAvailableOnDate(vehicle, t.PickUpDate))
                     .ToList();
 
                 // excluding cash trips
@@ -1526,7 +1568,6 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
             );
         }
     }
-
     /// <summary>
     /// Revert a finalized period (admin/undo functionality).
     /// This restores vehicle initial levels to what they were before finalization.
@@ -1581,6 +1622,9 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
             if (period == null)
                 return new Response<FuelDiagnosticDto>(HttpStatusCode.NotFound, "Period not found");
 
+            // Load unavailable periods cache
+            await LoadUnavailablePeriodsAsync(period.StartDate, period.EndDate);
+
             var vehicles = await _uow.Vehicles.GetAllAsync();
             var gasPurchases = await _uow.GasPurchases.GetByPeriodIdAsync(periodId);
 
@@ -1593,9 +1637,11 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
 
             // Group vehicles by fuel type and calculate consumption
             var vehiclesByFuelType = vehicles
-                .Where(v => !string.IsNullOrEmpty(v.FuelType) &&
+                .Where(v => v.IsActive &&
+                           !string.IsNullOrEmpty(v.FuelType) &&
                            !v.FuelType.Equals("Electric", StringComparison.OrdinalIgnoreCase) &&
-                           !v.FuelType.Equals("Электро", StringComparison.OrdinalIgnoreCase))
+                           !v.FuelType.Equals("Электро", StringComparison.OrdinalIgnoreCase) &&
+                           IsVehicleAvailableInPeriod(v, period.StartDate, period.EndDate))
                 .GroupBy(v => v.FuelType);
 
             foreach (var group in vehiclesByFuelType)
@@ -1612,6 +1658,7 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
                 {
                     var vehicleTrips = period.Trips
                         .Where(t => t.Assignments.Any(a => a.VehicleId == vehicle.Id && !a.HasConflict))
+                        .Where(t => IsVehicleAvailableOnDate(vehicle, t.PickUpDate))
                         .ToList();
                     
                     // excluding cash trips
@@ -1655,7 +1702,7 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
             foreach (var consumption in diagnostic.VehicleConsumptionByFuelType)
             {
                 var purchase = diagnostic.PurchasesByFuelType
-                    .FirstOrDefault(p => p.FuelType.ToLower() == consumption.FuelType.ToLower());
+                    .FirstOrDefault(p => AreFuelTypesCompatible(p.FuelType, consumption.FuelType));
 
                 double purchased = purchase?.TotalLiters ?? 0;
                 double needed = consumption.TotalFuelNeeded;
@@ -1674,7 +1721,7 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
             // Check for purchased fuel types with no vehicles
             foreach (var purchase in diagnostic.PurchasesByFuelType)
             {
-                if (!diagnostic.VehicleConsumptionByFuelType.Any(v => v.FuelType == purchase.FuelType))
+                if (!diagnostic.VehicleConsumptionByFuelType.Any(v => AreFuelTypesCompatible(v.FuelType, purchase.FuelType)))
                 {
                     diagnostic.BalanceByFuelType.Add(new FuelTypeBalanceDto
                     {
@@ -1701,7 +1748,6 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
                 new List<string> { ex.Message });
         }
     }
-
     #region Export
 
     public async Task<byte[]> ExportFuelReportAsync(int periodId)
@@ -2439,4 +2485,108 @@ public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IForm
     }
 
     #endregion
+    
+    /// <summary>
+    /// Check if vehicle is active on a given date.
+    /// Returns true if ActiveFrom is null or if the date is on or after ActiveFrom.
+    /// </summary>
+    private bool IsVehicleActiveOnDate(Domain.Entities.Vehicle vehicle, DateTime date)
+    {
+        if (!vehicle.ActiveFrom.HasValue)
+            return true;
+    
+        return date.Date >= vehicle.ActiveFrom.Value.Date;
+    }
+
+    /// <summary>
+    /// Check if vehicle was active during any part of a period.
+    /// </summary>
+    private bool IsVehicleActiveInPeriod(Domain.Entities.Vehicle vehicle, DateTime periodStart, DateTime periodEnd)
+    {
+        if (!vehicle.ActiveFrom.HasValue)
+            return true;
+    
+        // Vehicle is active in period if its ActiveFrom date is on or before the period end
+        return vehicle.ActiveFrom.Value.Date <= periodEnd.Date;
+    }
+    
+    /// <summary>
+    /// Load unavailable periods cache for a date range
+    /// </summary>
+    private async Task LoadUnavailablePeriodsAsync(DateTime startDate, DateTime endDate)
+    {
+        var allPeriods = await _uow.VehicleUnavailablePeriods.GetAllAsync();
+        
+        _unavailablePeriodsCache = allPeriods
+            .Where(p => p.StartDate <= endDate && p.EndDate >= startDate)
+            .GroupBy(p => p.VehicleId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(p => (p.StartDate, p.EndDate)).ToList()
+            );
+    }
+
+    /// <summary>
+    /// Check if vehicle is in an unavailable period on a specific date
+    /// </summary>
+    private bool IsVehicleInUnavailablePeriod(int vehicleId, DateTime date)
+    {
+        if (_unavailablePeriodsCache == null)
+            return false;
+        
+        if (!_unavailablePeriodsCache.TryGetValue(vehicleId, out var periods))
+            return false;
+        
+        var dateOnly = date.Date;
+        return periods.Any(p => p.Start <= dateOnly && p.End >= dateOnly);
+    }
+
+    /// <summary>
+    /// Check if vehicle is available on a specific date (both checks)
+    /// </summary>
+    private bool IsVehicleAvailableOnDate(Domain.Entities.Vehicle vehicle, DateTime date)
+    {
+        if (!IsVehicleActiveOnDate(vehicle, date))
+            return false;
+        
+        if (IsVehicleInUnavailablePeriod(vehicle.Id, date))
+            return false;
+        
+        return true;
+    }
+
+    /// <summary>
+    /// Check if vehicle has any available days in a period (not fully blocked by unavailable periods)
+    /// </summary>
+    private bool IsVehicleAvailableInPeriod(Domain.Entities.Vehicle vehicle, DateTime periodStart, DateTime periodEnd)
+    {
+        // First check ActiveFrom
+        if (!IsVehicleActiveInPeriod(vehicle, periodStart, periodEnd))
+            return false;
+        
+        // Check if vehicle is unavailable for the ENTIRE period
+        if (_unavailablePeriodsCache == null)
+            return true;
+        
+        if (!_unavailablePeriodsCache.TryGetValue(vehicle.Id, out var periods))
+            return true;
+        
+        // Vehicle is available if there's at least one day not covered by unavailable periods
+        // For simplicity, we check if any unavailable period fully covers our range
+        // A more precise check would iterate day-by-day, but this is usually sufficient
+        var effectiveStart = vehicle.ActiveFrom.HasValue && vehicle.ActiveFrom.Value.Date > periodStart.Date
+            ? vehicle.ActiveFrom.Value.Date
+            : periodStart.Date;
+        
+        // Check if the entire effective range is covered by unavailable periods
+        foreach (var (start, end) in periods)
+        {
+            if (start <= effectiveStart && end >= periodEnd.Date)
+            {
+                return false; // Fully blocked
+            }
+        }
+        
+        return true;
+    }
 }

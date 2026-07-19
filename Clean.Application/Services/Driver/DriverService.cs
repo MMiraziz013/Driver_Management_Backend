@@ -18,6 +18,16 @@ public class DriverService : IDriverService
     
     public async Task<Response<GetDriverDto>> AddDriverAsync(AddDriverDto dto)
     {
+        var weeklyWorkLimit = 0;
+        if (dto.EmploymentType == EmploymentType.FullTime ||  dto.EmploymentType == EmploymentType.Samarkand)
+        {
+            weeklyWorkLimit = 60;
+        }
+        else
+        {
+            weeklyWorkLimit = 30;
+        }
+        
         var toAdd = new Domain.Entities.Driver
         {
             Id = 0,
@@ -26,7 +36,7 @@ public class DriverService : IDriverService
             Address = dto.Address,
             Category = dto.DriverCategories,
             EmploymentType = dto.EmploymentType,
-            WeeklyWorkLimit = dto.EmploymentType == EmploymentType.FullTime ? 60 : 30,
+            WeeklyWorkLimit = weeklyWorkLimit,
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow

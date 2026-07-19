@@ -43,10 +43,11 @@ public class ReportExportService
         int rowNum = 2;
         foreach (var trip in period.Trips.OrderBy(t => t.PickUpDate).ThenBy(t => t.GarageOutTime))
         {
-            if (trip.IsCashTrip)
+            if (trip.IsCashTrip || trip.IsSamarkandTrip)
             {
                 continue;
             }
+            
             var assignment = trip.Assignments.FirstOrDefault();
             bool isConflict = assignment?.HasConflict ?? true;
             bool isFieldTrip = assignment?.AssignmentType == AssignmentType.Manual;
