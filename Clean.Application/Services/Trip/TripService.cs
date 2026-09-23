@@ -229,6 +229,7 @@ public class TripService : ITripService
             IncludedInReport = trip.IncludedInReport,
             ImportedDriverName = trip.ImportedDriverName,
             ImportedVehiclePlate = trip.ImportedVehiclePlate,
+            ImportedVehicleType = trip.ImportedVehicleType,
             PmtMethod = trip.PmtMethod,
             VehicleTypeName = trip.VehicleType?.Name ?? "",
             ServiceTypeName = trip.ServiceType?.Name ?? "",

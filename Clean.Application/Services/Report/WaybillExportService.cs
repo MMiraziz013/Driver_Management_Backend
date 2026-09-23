@@ -22,6 +22,7 @@ public class WaybillExportService
 
     private const int MAX_PAGES_PER_VEHICLE = 2;
     private const int MAX_DRIVERS_PER_PAGE = 2;
+    private const int MAX_ROWS_PER_PAGE = 18; // Max trip rows that fit on one printed sheet
     private const double MIN_FUEL_THRESHOLD = 5.0; // Minimum fuel level before we need to allocate
 
     public WaybillExportService(IUnitOfWork uow)
@@ -52,97 +53,129 @@ public class WaybillExportService
     }
 
     private void CreateVehicleSheets(
-    IXLWorkbook workbook,
-    List<JourneyDto> journeys,
-    List<VehicleFuelAllocation> fuelAllocations,
-    List<Domain.Entities.Vehicle> vehicles,
-    Domain.Entities.ReportPeriod period)
-{
-    var journeysByVehicle = journeys
-        .GroupBy(j => new { j.VehicleId, j.VehiclePlate, j.VehicleModel })
-        .OrderBy(g => g.Key.VehiclePlate)
-        .ToList();
-
-    int sheetNumber = 1;  // Sequential number for ALL pages across all vehicles
-
-    foreach (var vehicleGroup in journeysByVehicle)
+        IXLWorkbook workbook,
+        List<JourneyDto> journeys,
+        List<VehicleFuelAllocation> fuelAllocations,
+        List<Domain.Entities.Vehicle> vehicles,
+        Domain.Entities.ReportPeriod period)
     {
-        var vehicleId = vehicleGroup.Key.VehicleId;
-        var vehiclePlate = vehicleGroup.Key.VehiclePlate;
-        var vehicleModel = vehicleGroup.Key.VehicleModel;
-        var vehicle = vehicles.FirstOrDefault(v => v.Id == vehicleId);
-
-        var vehicleFuelAllocations = fuelAllocations
-            .Where(fa => fa.VehicleId == vehicleId)
-            .OrderBy(fa => fa.AllocationDate)
+        var journeysByVehicle = journeys
+            .GroupBy(j => new { j.VehicleId, j.VehiclePlate, j.VehicleModel })
+            .OrderBy(g => g.Key.VehiclePlate)
             .ToList();
 
-        var allVehicleJourneys = vehicleGroup.ToList();
+        // Pass 1: plan every physical page up front so the global page count is known
+        var pages = new List<WaybillPage>();
 
-        var processedTimeline = PreCalculateVehicleTimelineWithOptimalFuel(
-            allVehicleJourneys,
-            vehicleFuelAllocations,
-            vehicle);
-
-        double totalVehicleFuelConsumed = allVehicleJourneys.Sum(j => j.TotalFuelConsumed);
-        double totalVehicleFuelAllocated = vehicleFuelAllocations.Sum(fa => fa.LitersAllocated);
-        double totalVehicleDistance = allVehicleJourneys.Sum(j => j.TotalDistanceKm);
-        double initialFuelLevel = vehicle?.InitialFuelLevel ?? 0;
-        double endingFuelLevel = initialFuelLevel + totalVehicleFuelAllocated - totalVehicleFuelConsumed;
-
-        var driversList = vehicleGroup
-            .GroupBy(j => new { j.DriverId, j.DriverName })
-            .OrderBy(g => g.Min(j => j.Date))
-            .ThenBy(g => g.Min(j => j.DepartureTime))
-            .Select(g => new { g.Key.DriverId, g.Key.DriverName })
-            .ToList();
-
-        var driverPages = new List<List<(int DriverId, string DriverName)>>();
-        for (int i = 0; i < driversList.Count && driverPages.Count < MAX_PAGES_PER_VEHICLE; i += MAX_DRIVERS_PER_PAGE)
+        foreach (var vehicleGroup in journeysByVehicle)
         {
-            var pageDrivers = driversList
-                .Skip(i)
-                .Take(MAX_DRIVERS_PER_PAGE)
-                .Select(d => (d.DriverId, d.DriverName))
+            var vehicleId = vehicleGroup.Key.VehicleId;
+            var vehicle = vehicles.FirstOrDefault(v => v.Id == vehicleId);
+
+            var vehicleFuelAllocations = fuelAllocations
+                .Where(fa => fa.VehicleId == vehicleId)
+                .OrderBy(fa => fa.AllocationDate)
                 .ToList();
-            driverPages.Add(pageDrivers);
+
+            var allVehicleJourneys = vehicleGroup.ToList();
+
+            var processedTimeline = PreCalculateVehicleTimelineWithOptimalFuel(
+                allVehicleJourneys,
+                vehicleFuelAllocations,
+                vehicle);
+
+            double totalVehicleFuelConsumed = allVehicleJourneys.Sum(j => j.TotalFuelConsumed);
+            double totalVehicleFuelAllocated = vehicleFuelAllocations.Sum(fa => fa.LitersAllocated);
+            double totalVehicleDistance = allVehicleJourneys.Sum(j => j.TotalDistanceKm);
+            double initialFuelLevel = vehicle?.InitialFuelLevel ?? 0;
+            double endingFuelLevel = initialFuelLevel + totalVehicleFuelAllocated - totalVehicleFuelConsumed;
+
+            var driversList = vehicleGroup
+                .GroupBy(j => new { j.DriverId, j.DriverName })
+                .OrderBy(g => g.Min(j => j.Date))
+                .ThenBy(g => g.Min(j => j.DepartureTime))
+                .Select(g => new { g.Key.DriverId, g.Key.DriverName })
+                .ToList();
+
+            var driverPages = new List<List<(int DriverId, string DriverName)>>();
+            for (int i = 0; i < driversList.Count && driverPages.Count < MAX_PAGES_PER_VEHICLE; i += MAX_DRIVERS_PER_PAGE)
+            {
+                var pageDrivers = driversList
+                    .Skip(i)
+                    .Take(MAX_DRIVERS_PER_PAGE)
+                    .Select(d => (d.DriverId, d.DriverName))
+                    .ToList();
+                driverPages.Add(pageDrivers);
+            }
+
+            var timelineByPage = DistributeTimelineToPages(processedTimeline, driverPages);
+
+            var vehiclePages = new List<WaybillPage>();
+            for (int pairIndex = 0; pairIndex < driverPages.Count; pairIndex++)
+            {
+                var pairTimeline = timelineByPage.GetValueOrDefault(pairIndex, new List<ProcessedTimelineItem>());
+
+                // Split the pair's rows across as many physical sheets as needed
+                var chunks = pairTimeline.Chunk(MAX_ROWS_PER_PAGE).ToList();
+                for (int chunkIndex = 0; chunkIndex < chunks.Count; chunkIndex++)
+                {
+                    vehiclePages.Add(new WaybillPage
+                    {
+                        VehiclePlate = vehicleGroup.Key.VehiclePlate,
+                        VehicleModel = vehicleGroup.Key.VehicleModel,
+                        Vehicle = vehicle,
+                        Drivers = driverPages[pairIndex],
+                        Timeline = chunks[chunkIndex].ToList(),
+                        StartingJourneyNumber = chunkIndex * MAX_ROWS_PER_PAGE + 1,
+                        TotalVehicleFuelConsumed = totalVehicleFuelConsumed,
+                        TotalVehicleFuelAllocated = totalVehicleFuelAllocated,
+                        TotalVehicleDistance = totalVehicleDistance,
+                        InitialFuelLevel = initialFuelLevel,
+                        EndingFuelLevel = endingFuelLevel
+                    });
+                }
+            }
+
+            for (int i = 0; i < vehiclePages.Count; i++)
+            {
+                vehiclePages[i].VehiclePageNumber = i + 1;
+                vehiclePages[i].VehiclePageCount = vehiclePages.Count;
+            }
+
+            pages.AddRange(vehiclePages);
         }
 
-        int totalPages = driverPages.Count;
+        // Pass 2: render each page with its vehicle and global page numbers
+        int totalSheets = pages.Count;
+        int sheetNumber = 1;  // Sequential number for ALL pages across all vehicles
 
-        var timelineByPage = DistributeTimelineToPages(processedTimeline, driverPages);
-
-        for (int pageIndex = 0; pageIndex < driverPages.Count; pageIndex++)
+        foreach (var page in pages)
         {
-            var pageDrivers = driverPages[pageIndex];
-            int pageNumber = pageIndex + 1;
-
-            var pageTimeline = timelineByPage.GetValueOrDefault(pageIndex, new List<ProcessedTimelineItem>());
-
-            var driverNamesForHeader = string.Join(", ", pageDrivers.Select(d => d.DriverName));
-            string sheetName = CreateSheetName(vehiclePlate, pageNumber, totalPages);
+            bool multipleDrivers = page.Drivers.Count > 1;
+            var driverNamesForHeader = string.Join(", ", page.Drivers.Select(d => d.DriverName));
+            string sheetName = CreateSheetName(page.VehiclePlate, page.VehiclePageNumber, page.VehiclePageCount);
 
             var ws = workbook.Worksheets.Add(sheetName);
 
-            CreateVehicleHeader(ws, vehiclePlate, vehicleModel, driverNamesForHeader,
-                vehicle, period, pageNumber, totalPages, pageDrivers.Count > 1,
-                sheetNumber);  // Pass current sheet number
+            CreateVehicleHeader(ws, page.VehiclePlate, page.VehicleModel, driverNamesForHeader,
+                page.Vehicle, period, page.VehiclePageNumber, page.VehiclePageCount, multipleDrivers,
+                sheetNumber, totalSheets);
 
             CreateVehicleJourneyRows(
                 ws,
-                pageTimeline,
-                pageDrivers,    
-                totalVehicleFuelConsumed,
-                totalVehicleFuelAllocated,
-                totalVehicleDistance,
-                initialFuelLevel,
-                endingFuelLevel,
-                pageDrivers.Count > 1);
+                page.Timeline,
+                page.Drivers,
+                page.TotalVehicleFuelConsumed,
+                page.TotalVehicleFuelAllocated,
+                page.TotalVehicleDistance,
+                page.InitialFuelLevel,
+                page.EndingFuelLevel,
+                multipleDrivers,
+                page.StartingJourneyNumber);
 
-            sheetNumber++;  // Increment AFTER each page is created
+            sheetNumber++;
         }
     }
-}
 
     /// <summary>
     /// Pre-calculate mileage and fuel for ALL journeys, with fuel allocations
@@ -394,10 +427,10 @@ public class WaybillExportService
         IXLWorksheet ws, string vehiclePlate, string vehicleModel, string driverNames,
         Domain.Entities.Vehicle? vehicle, Domain.Entities.ReportPeriod period,
         int pageNumber, int totalPages, bool multipleDrivers,
-        int sheetNumber)  // Sequential sheet number
+        int sheetNumber, int totalSheets)  // Sequential sheet number across all vehicles
     {
         // Sheet number in top-right corner
-        ws.Cell(1, 14).Value = $"№ {sheetNumber}";
+        ws.Cell(1, 14).Value = $"№ {sheetNumber} из {totalSheets}";
         ws.Cell(1, 14).Style.Font.Bold = true;
         ws.Cell(1, 14).Style.Font.FontSize = 18;
         ws.Cell(1, 14).Style.Font.FontColor = XLColor.DarkBlue;
@@ -412,10 +445,16 @@ public class WaybillExportService
         ws.Cell(1, 1).Style.Font.FontSize = 16;
         ws.Cell(1, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
-        string pageInfo = totalPages > 1 ? $" (Лист {pageNumber} из {totalPages})" : "";
-        ws.Cell(2, 1).Value = $"Период: {period.StartDate:dd.MM.yyyy} - {period.EndDate:dd.MM.yyyy}{pageInfo}";
-        ws.Range(2, 1, 2, 15).Merge();
+        ws.Cell(2, 1).Value = $"Период: {period.StartDate:dd.MM.yyyy} - {period.EndDate:dd.MM.yyyy}";
+        ws.Range(2, 1, 2, 13).Merge();
         ws.Cell(2, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+        // Page number within this vehicle's waybill
+        ws.Cell(2, 14).Value = $"Лист {pageNumber} из {totalPages}";
+        ws.Cell(2, 14).Style.Font.Bold = true;
+        ws.Cell(2, 14).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+        ws.Range(2, 14, 2, 15).Merge();
+        ws.Range(2, 14, 2, 15).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
 
         ws.Cell(4, 1).Value = "Автомобиль:";
         ws.Cell(4, 1).Style.Font.Bold = true;
@@ -461,7 +500,8 @@ public class WaybillExportService
         double totalVehicleDistance,
         double initialFuelLevel,
         double endingFuelLevel,
-        bool showDriverColumn)
+        bool showDriverColumn,
+        int startingJourneyNumber)
     {
         int headerRow = 8;
 
@@ -492,7 +532,7 @@ public class WaybillExportService
         ws.Range(headerRow, 1, headerRow, colCount).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
 
         int dataRow = headerRow + 1;
-        int journeyNumber = 1;
+        int journeyNumber = startingJourneyNumber;
 
         double pageTotalDistance = 0;
         double pageTotalFuelConsumed = 0;
@@ -834,6 +874,23 @@ public class WaybillExportService
         public List<VehicleFuelAllocation> AttachedAllocations { get; set; } = new();
         public DateTime Date { get; set; }
         public TimeSpan Time { get; set; }
+    }
+
+    private class WaybillPage
+    {
+        public string VehiclePlate { get; set; } = string.Empty;
+        public string VehicleModel { get; set; } = string.Empty;
+        public Domain.Entities.Vehicle? Vehicle { get; set; }
+        public List<(int DriverId, string DriverName)> Drivers { get; set; } = new();
+        public List<ProcessedTimelineItem> Timeline { get; set; } = new();
+        public int StartingJourneyNumber { get; set; } = 1;
+        public int VehiclePageNumber { get; set; }
+        public int VehiclePageCount { get; set; }
+        public double TotalVehicleFuelConsumed { get; set; }
+        public double TotalVehicleFuelAllocated { get; set; }
+        public double TotalVehicleDistance { get; set; }
+        public double InitialFuelLevel { get; set; }
+        public double EndingFuelLevel { get; set; }
     }
 
     private enum TimelineItemType { Journey, FuelAllocation }

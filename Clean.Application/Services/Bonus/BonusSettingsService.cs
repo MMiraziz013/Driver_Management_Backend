@@ -220,6 +220,170 @@ public class BonusSettingsService : IBonusSettingsService
         }
     }
 
+    public async Task<Response<List<BonusCalculationExceptionDto>>> GetExceptionsAsync()
+    {
+        try
+        {
+            var exceptions = await _uow.BonusCalculationExceptions.GetAllWithServiceTypeAsync();
+            return new Response<List<BonusCalculationExceptionDto>>(HttpStatusCode.OK,
+                exceptions.Select(MapToDto).ToList());
+        }
+        catch (Exception ex)
+        {
+            return new Response<List<BonusCalculationExceptionDto>>(HttpStatusCode.InternalServerError,
+                new List<string> { ex.Message });
+        }
+    }
+
+    public async Task<Response<BonusCalculationExceptionDto>> GetExceptionByIdAsync(int id)
+    {
+        try
+        {
+            var exception = await _uow.BonusCalculationExceptions.GetByIdAsync(id);
+            if (exception == null)
+            {
+                return new Response<BonusCalculationExceptionDto>(HttpStatusCode.NotFound,
+                    new List<string> { "Exception not found" });
+            }
+
+            return new Response<BonusCalculationExceptionDto>(HttpStatusCode.OK, MapToDto(exception));
+        }
+        catch (Exception ex)
+        {
+            return new Response<BonusCalculationExceptionDto>(HttpStatusCode.InternalServerError,
+                new List<string> { ex.Message });
+        }
+    }
+
+    public async Task<Response<BonusCalculationExceptionDto>> CreateExceptionAsync(SaveBonusCalculationExceptionDto dto)
+    {
+        try
+        {
+            var errors = await ValidateExceptionAsync(dto);
+            if (errors.Any())
+                return new Response<BonusCalculationExceptionDto>(HttpStatusCode.BadRequest, errors);
+
+            var exception = new BonusCalculationException();
+            ApplyExceptionDto(exception, dto);
+
+            await _uow.BonusCalculationExceptions.AddAsync(exception);
+            await _uow.CompleteAsync();
+
+            var created = await _uow.BonusCalculationExceptions.GetByIdAsync(exception.Id);
+            return new Response<BonusCalculationExceptionDto>(HttpStatusCode.Created, "Exception created",
+                MapToDto(created!));
+        }
+        catch (Exception ex)
+        {
+            return new Response<BonusCalculationExceptionDto>(HttpStatusCode.InternalServerError,
+                new List<string> { ex.Message });
+        }
+    }
+
+    public async Task<Response<BonusCalculationExceptionDto>> UpdateExceptionAsync(int id, SaveBonusCalculationExceptionDto dto)
+    {
+        try
+        {
+            var exception = await _uow.BonusCalculationExceptions.GetByIdAsync(id);
+            if (exception == null)
+            {
+                return new Response<BonusCalculationExceptionDto>(HttpStatusCode.NotFound,
+                    new List<string> { "Exception not found" });
+            }
+
+            var errors = await ValidateExceptionAsync(dto);
+            if (errors.Any())
+                return new Response<BonusCalculationExceptionDto>(HttpStatusCode.BadRequest, errors);
+
+            ApplyExceptionDto(exception, dto);
+            exception.UpdatedAt = DateTime.UtcNow;
+
+            _uow.BonusCalculationExceptions.Update(exception);
+            await _uow.CompleteAsync();
+
+            var updated = await _uow.BonusCalculationExceptions.GetByIdAsync(id);
+            return new Response<BonusCalculationExceptionDto>(HttpStatusCode.OK, "Exception updated",
+                MapToDto(updated!));
+        }
+        catch (Exception ex)
+        {
+            return new Response<BonusCalculationExceptionDto>(HttpStatusCode.InternalServerError,
+                new List<string> { ex.Message });
+        }
+    }
+
+    public async Task<Response<string>> DeleteExceptionAsync(int id)
+    {
+        try
+        {
+            var exception = await _uow.BonusCalculationExceptions.GetByIdAsync(id);
+            if (exception == null)
+            {
+                return new Response<string>(HttpStatusCode.NotFound,
+                    new List<string> { "Exception not found" });
+            }
+
+            _uow.BonusCalculationExceptions.Remove(exception);
+            await _uow.CompleteAsync();
+
+            return new Response<string>(HttpStatusCode.OK, "Exception deleted");
+        }
+        catch (Exception ex)
+        {
+            return new Response<string>(HttpStatusCode.InternalServerError,
+                new List<string> { ex.Message });
+        }
+    }
+
+    private async Task<List<string>> ValidateExceptionAsync(SaveBonusCalculationExceptionDto dto)
+    {
+        var errors = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(dto.Name))
+            errors.Add("Name is required");
+        if (string.IsNullOrWhiteSpace(dto.CompanyNameContains))
+            errors.Add("Company name is required");
+        if (!System.Enum.IsDefined(dto.CalculationMethod))
+            errors.Add("Invalid calculation method");
+        if (await _uow.ServiceTypes.GetByIdAsync(dto.ServiceTypeId) == null)
+            errors.Add("Service type not found");
+
+        return errors;
+    }
+
+    private static void ApplyExceptionDto(BonusCalculationException exception, SaveBonusCalculationExceptionDto dto)
+    {
+        exception.Name = dto.Name.Trim();
+        exception.IsActive = dto.IsActive;
+        exception.CompanyNameContains = dto.CompanyNameContains.Trim();
+        exception.ServiceTypeId = dto.ServiceTypeId;
+        exception.CalculationMethod = dto.CalculationMethod;
+        exception.VehicleTypes = CleanList(dto.VehicleTypes);
+        exception.LocationKeywords = CleanList(dto.LocationKeywords);
+    }
+
+    private static List<string> CleanList(List<string>? values) =>
+        (values ?? new List<string>())
+            .Where(v => !string.IsNullOrWhiteSpace(v))
+            .Select(v => v.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+    private static BonusCalculationExceptionDto MapToDto(BonusCalculationException exception) => new()
+    {
+        Id = exception.Id,
+        Name = exception.Name,
+        IsActive = exception.IsActive,
+        CompanyNameContains = exception.CompanyNameContains,
+        ServiceTypeId = exception.ServiceTypeId,
+        ServiceTypeName = exception.ServiceType?.Name ?? "Unknown",
+        CalculationMethod = exception.CalculationMethod,
+        VehicleTypes = exception.VehicleTypes,
+        LocationKeywords = exception.LocationKeywords,
+        CreatedAt = exception.CreatedAt,
+        UpdatedAt = exception.UpdatedAt
+    };
+
     private static BonusCalculationMethod GetDefaultCalculationMethod(string serviceTypeName)
     {
         var name = serviceTypeName.ToLowerInvariant();

@@ -24,6 +24,7 @@ public class UnitOfWork : IUnitOfWork
     // Bonus repositories
     private IBonusSettingsRepository? _bonusSettings;
     private IServiceTypeBonusConfigRepository? _serviceTypeBonusConfigs;
+    private IBonusCalculationExceptionRepository? _bonusCalculationExceptions;
     
     // Accounting repositories
     private IExchangeRateRepository? _exchangeRates;
@@ -60,6 +61,7 @@ public class UnitOfWork : IUnitOfWork
     // NEW: Bonus repository properties
     public IBonusSettingsRepository BonusSettings => _bonusSettings ??= new BonusSettingsRepository(_context);
     public IServiceTypeBonusConfigRepository ServiceTypeBonusConfigs => _serviceTypeBonusConfigs ??= new ServiceTypeBonusConfigRepository(_context);
+    public IBonusCalculationExceptionRepository BonusCalculationExceptions => _bonusCalculationExceptions ??= new BonusCalculationExceptionRepository(_context);
     public IExchangeRateRepository ExchangeRates => _exchangeRates ??= new ExchangeRateRepository(_context);
     public IAccountingReportRepository AccountingReports => _accountingReports ??= new AccountingReportRepository(_context);
     public IAccountingTransactionRepository AccountingTransactions => _accountingTransactions ??= new AccountingTransactionRepository(_context);

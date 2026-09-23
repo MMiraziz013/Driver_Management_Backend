@@ -147,6 +147,7 @@ public class TripUploadService
                     IsSamarkandTrip = isSamarkandDriver,
                     ImportedDriverName = driver,
                     ImportedVehiclePlate = car,
+                    ImportedVehicleType = vName.Trim(),
                     PmtMethod = pmtMethod
                 };
 

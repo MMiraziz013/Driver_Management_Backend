@@ -31,6 +31,8 @@ public class Trip
     
     public string? ImportedVehiclePlate { get; set; }
     
+    public string? ImportedVehicleType { get; set; }
+    
     public bool CoordinatesResolved { get; set; } = true; // Track if coordinates were found
 
     public string? PmtMethod { get; set; }

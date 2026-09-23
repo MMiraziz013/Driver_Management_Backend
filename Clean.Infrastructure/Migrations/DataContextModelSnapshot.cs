@@ -143,6 +143,56 @@ namespace ClassLibrary1.Migrations
                     b.ToTable("accounting_transactions", (string)null);
                 });
 
+            modelBuilder.Entity("Clean.Domain.Entities.BonusCalculationException", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CalculationMethod")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("CompanyNameContains")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LocationKeywordsJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("location_keywords");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("ServiceTypeId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("VehicleTypesJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("vehicle_types");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ServiceTypeId");
+
+                    b.ToTable("bonus_calculation_exceptions", (string)null);
+                });
+
             modelBuilder.Entity("Clean.Domain.Entities.BonusSettings", b =>
                 {
                     b.Property<int>("Id")
@@ -873,6 +923,10 @@ namespace ClassLibrary1.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("ImportedVehicleType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<bool>("IncludedInReport")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -1362,6 +1416,17 @@ namespace ClassLibrary1.Migrations
                         .IsRequired();
 
                     b.Navigation("AccountingReport");
+                });
+
+            modelBuilder.Entity("Clean.Domain.Entities.BonusCalculationException", b =>
+                {
+                    b.HasOne("Clean.Domain.Entities.ServiceType", "ServiceType")
+                        .WithMany()
+                        .HasForeignKey("ServiceTypeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ServiceType");
                 });
 
             modelBuilder.Entity("Clean.Domain.Entities.Company", b =>

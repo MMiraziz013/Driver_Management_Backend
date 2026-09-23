@@ -30,6 +30,8 @@ public interface IDataContext
 
     public DbSet<ServiceTypeBonusConfig> ServiceTypeBonusConfigs { get; set; }
 
+    public DbSet<BonusCalculationException> BonusCalculationExceptions { get; set; }
+
     public DbSet<ExchangeRate> ExchangeRates { get; set; }
     public DbSet<AccountingReport> AccountingReports { get; set; }
     public DbSet<AccountingTransaction> AccountingTransactions { get; set; }

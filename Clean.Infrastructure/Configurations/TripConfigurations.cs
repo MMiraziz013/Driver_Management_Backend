@@ -45,6 +45,7 @@ public class TripConfigurations : IEntityTypeConfiguration<Trip>
 
         builder.Property(t => t.ImportedDriverName).HasMaxLength(150);
         builder.Property(t => t.ImportedVehiclePlate).HasMaxLength(50);
+        builder.Property(t => t.ImportedVehicleType).HasMaxLength(100);
 
         builder.HasMany(t => t.Assignments)
             .WithOne(a => a.Trip)

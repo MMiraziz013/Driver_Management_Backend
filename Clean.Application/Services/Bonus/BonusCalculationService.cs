@@ -41,6 +41,9 @@ public class BonusCalculationService : IBonusCalculationService
             var serviceTypeConfigs = await _uow.ServiceTypeBonusConfigs.GetAllWithServiceTypeAsync();
             var configByServiceTypeId = serviceTypeConfigs.ToDictionary(c => c.ServiceTypeId, c => c.CalculationMethod);
 
+            // Get active calculation exceptions (e.g. Sierra Nevada Round Trips via Chirchik => hourly)
+            var calculationExceptions = await _uow.BonusCalculationExceptions.GetActiveAsync();
+
             // Get periods
             var periods = new List<Domain.Entities.ReportPeriod>();
             foreach (var periodId in request.PeriodIds)
@@ -83,7 +86,8 @@ public class BonusCalculationService : IBonusCalculationService
                     driverGroup.Key,
                     driverGroup.ToList(),
                     settings,
-                    configByServiceTypeId);
+                    configByServiceTypeId,
+                    calculationExceptions);
 
                 driverResults.Add(driverResult);
             }
@@ -113,30 +117,35 @@ public class BonusCalculationService : IBonusCalculationService
         string driverName,
         List<Domain.Entities.Trip> trips,
         BonusSettings settings,
-        Dictionary<int, BonusCalculationMethod> configByServiceTypeId)
+        Dictionary<int, BonusCalculationMethod> configByServiceTypeId,
+        List<BonusCalculationException> calculationExceptions)
     {
         var premiumVehicleTypes = settings.PremiumVehicleTypes
-            .Select(v => v.ToLowerInvariant())
-            .ToHashSet();
+            .Select(v => v.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var serviceTypeBreakdowns = new List<ServiceTypeBonusBreakdownDto>();
 
-        // Separate Sierra Nevada MB Sprinter Round Trips for special handling
-        var sierraNevadaException = trips
-            .Where(t => IsSierraNevadaSpinterRoundTrip(t))
+        // Separate trips that fall under a calculation exception for special handling
+        var tripsWithException = trips
+            .Select(t => (Trip: t, Exception: BonusExceptionMatcher.FindMatch(t, calculationExceptions)))
             .ToList();
 
-        var regularTrips = trips
-            .Where(t => !IsSierraNevadaSpinterRoundTrip(t))
+        var regularTrips = tripsWithException
+            .Where(x => x.Exception == null)
+            .Select(x => x.Trip)
             .ToList();
 
-        // Process Sierra Nevada exception trips as Duration-Based
-        if (sierraNevadaException.Any())
+        // Process exception trips with the exception's calculation method
+        foreach (var exceptionGroup in tripsWithException.Where(x => x.Exception != null).GroupBy(x => x.Exception!))
         {
+            var exception = exceptionGroup.Key;
+            var serviceTypeName = exception.ServiceType?.Name ?? "Unknown";
+
             var breakdown = CalculateServiceTypeBonus(
-                "Round Trip (Sierra Nevada Exception)",
-                sierraNevadaException,
-                BonusCalculationMethod.DurationBased,  // Force duration-based
+                $"{serviceTypeName} ({exception.Name})",
+                exceptionGroup.Select(x => x.Trip).ToList(),
+                exception.CalculationMethod,
                 settings,
                 premiumVehicleTypes);
 
@@ -252,9 +261,7 @@ public class BonusCalculationService : IBonusCalculationService
 
         foreach (var trip in trips)
         {
-            var vehicleModel = TripQueryExtensions.ParseVehicleModel(trip.ImportedVehiclePlate);
-            var isPremium = premiumVehicleTypes.Any(pv =>
-                vehicleModel.Contains(pv, StringComparison.OrdinalIgnoreCase));
+            var isPremium = IsPremiumTrip(trip, premiumVehicleTypes);
 
             decimal rate;
         
@@ -293,9 +300,7 @@ public class BonusCalculationService : IBonusCalculationService
 
         foreach (var trip in trips)
         {
-            var vehicleModel = TripQueryExtensions.ParseVehicleModel(trip.ImportedVehiclePlate);
-            var isPremium = premiumVehicleTypes.Any(pv =>
-                vehicleModel.ToLowerInvariant().Contains(pv));
+            var isPremium = IsPremiumTrip(trip, premiumVehicleTypes);
 
             if (isPremium)
             {
@@ -630,22 +635,11 @@ public class BonusCalculationService : IBonusCalculationService
     }
     
     /// <summary>
-    /// Check if trip qualifies for Sierra Nevada MB Sprinter Round Trip exception.
-    /// These trips are calculated hourly instead of per-trip.
+    /// Premium is decided by the trip's vehicle type as imported (e.g. "Luxury minibus"), not the plate.
     /// </summary>
-    private bool IsSierraNevadaSpinterRoundTrip(Domain.Entities.Trip trip)
+    private static bool IsPremiumTrip(Domain.Entities.Trip trip, HashSet<string> premiumVehicleTypes)
     {
-        // Check company name
-        var companyMatch = trip.CompanyName?.Contains("Sierra Nevada", StringComparison.OrdinalIgnoreCase) ?? false;
-    
-        // Check vehicle type (MB Sprinter)
-        var vehicleModel = TripQueryExtensions.ParseVehicleModel(trip.ImportedVehiclePlate);
-        var vehicleMatch = vehicleModel.Contains("Sprinter", StringComparison.OrdinalIgnoreCase) ||
-                           vehicleModel.Contains("MB Sprinter", StringComparison.OrdinalIgnoreCase);
-    
-        // Check service type (Round Trip)
-        var serviceTypeMatch = trip.ServiceType?.Name?.Equals("Round Trip", StringComparison.OrdinalIgnoreCase) ?? false;
-    
-        return companyMatch && vehicleMatch && serviceTypeMatch;
+        var vehicleType = BonusExceptionMatcher.GetTripVehicleType(trip);
+        return vehicleType != null && premiumVehicleTypes.Contains(vehicleType);
     }
 }

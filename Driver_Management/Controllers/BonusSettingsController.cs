@@ -66,4 +66,54 @@ public class BonusSettingsController : ControllerBase
         var response = await _bonusSettingsService.InitializeDefaultConfigsAsync();
         return StatusCode(response.StatusCode, response);
     }
+
+    /// <summary>
+    /// Get all calculation exceptions (e.g. Sierra Nevada Round Trips via Chirchik => hourly)
+    /// </summary>
+    [HttpGet("exceptions")]
+    public async Task<IActionResult> GetExceptions()
+    {
+        var response = await _bonusSettingsService.GetExceptionsAsync();
+        return StatusCode(response.StatusCode, response);
+    }
+
+    /// <summary>
+    /// Get a calculation exception by id
+    /// </summary>
+    [HttpGet("exceptions/{id:int}")]
+    public async Task<IActionResult> GetException(int id)
+    {
+        var response = await _bonusSettingsService.GetExceptionByIdAsync(id);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    /// <summary>
+    /// Create a calculation exception
+    /// </summary>
+    [HttpPost("exceptions")]
+    public async Task<IActionResult> CreateException([FromBody] SaveBonusCalculationExceptionDto dto)
+    {
+        var response = await _bonusSettingsService.CreateExceptionAsync(dto);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    /// <summary>
+    /// Update a calculation exception (company, service type, method, vehicle types, location keywords)
+    /// </summary>
+    [HttpPut("exceptions/{id:int}")]
+    public async Task<IActionResult> UpdateException(int id, [FromBody] SaveBonusCalculationExceptionDto dto)
+    {
+        var response = await _bonusSettingsService.UpdateExceptionAsync(id, dto);
+        return StatusCode(response.StatusCode, response);
+    }
+
+    /// <summary>
+    /// Delete a calculation exception
+    /// </summary>
+    [HttpDelete("exceptions/{id:int}")]
+    public async Task<IActionResult> DeleteException(int id)
+    {
+        var response = await _bonusSettingsService.DeleteExceptionAsync(id);
+        return StatusCode(response.StatusCode, response);
+    }
 }

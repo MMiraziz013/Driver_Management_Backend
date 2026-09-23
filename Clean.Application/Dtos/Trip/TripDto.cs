@@ -14,6 +14,7 @@ public class TripDto
     public bool IncludedInReport { get; set; }
     public string? ImportedDriverName { get; set; }
     public string? ImportedVehiclePlate { get; set; }
+    public string? ImportedVehicleType { get; set; }
     public string? PmtMethod { get; set; }
     public string VehicleTypeName { get; set; } = string.Empty;
     public string ServiceTypeName { get; set; } = string.Empty;

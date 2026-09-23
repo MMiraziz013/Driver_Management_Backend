@@ -74,7 +74,7 @@ public class BonusSettings
     public decimal FieldTripDailyRate { get; set; } = 100000;
     
     // === Premium Vehicle Types (JSON array) ===
-    public string PremiumVehicleTypesJson { get; set; } = "[\"MB Sprinter\",\"VW Crafter\",\"Toyota Hiace\"]";
+    public string PremiumVehicleTypesJson { get; set; } = "[\"Luxury minibus\"]";
     
     [NotMapped]
     public List<string> PremiumVehicleTypes

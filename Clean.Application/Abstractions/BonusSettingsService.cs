@@ -11,4 +11,10 @@ public interface IBonusSettingsService
     Task<Response<List<ServiceTypeBonusConfigDto>>> GetServiceTypeConfigsAsync();
     Task<Response<ServiceTypeBonusConfigDto>> UpdateServiceTypeConfigAsync(UpdateServiceTypeBonusConfigDto dto);
     Task<Response<string>> InitializeDefaultConfigsAsync();
+
+    Task<Response<List<BonusCalculationExceptionDto>>> GetExceptionsAsync();
+    Task<Response<BonusCalculationExceptionDto>> GetExceptionByIdAsync(int id);
+    Task<Response<BonusCalculationExceptionDto>> CreateExceptionAsync(SaveBonusCalculationExceptionDto dto);
+    Task<Response<BonusCalculationExceptionDto>> UpdateExceptionAsync(int id, SaveBonusCalculationExceptionDto dto);
+    Task<Response<string>> DeleteExceptionAsync(int id);
 }

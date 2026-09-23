@@ -182,6 +182,40 @@ public static class RoutingDetailsParser
     }
 
     /// <summary>
+    /// Check if any route point (PU, ST, DO) mentions one of the given keywords (case-insensitive).
+    /// Matches against the full segment text, since Parse() keeps only the part before the first comma
+    /// (e.g. "Hotel X, Chirchik" would lose "Chirchik"). Falls back to the raw text if there are no route points.
+    /// </summary>
+    public static bool RouteContainsAny(string? routingDetails, IEnumerable<string> keywords)
+    {
+        if (string.IsNullOrWhiteSpace(routingDetails))
+            return false;
+
+        var keywordList = keywords
+            .Where(k => !string.IsNullOrWhiteSpace(k))
+            .Select(k => k.Trim())
+            .ToList();
+
+        if (keywordList.Count == 0)
+            return false;
+
+        var routePoints = routingDetails
+            .Split(';', StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => s.Trim())
+            .Where(s => s.StartsWith("PU:", StringComparison.OrdinalIgnoreCase) ||
+                        s.StartsWith("ST:", StringComparison.OrdinalIgnoreCase) ||
+                        s.StartsWith("DO:", StringComparison.OrdinalIgnoreCase))
+            .Select(s => s.Substring(3))
+            .ToList();
+
+        if (routePoints.Count == 0)
+            routePoints.Add(routingDetails);
+
+        return routePoints.Any(point =>
+            keywordList.Any(k => point.Contains(k, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    /// <summary>
     /// Check if two addresses are the same after normalization
     /// </summary>
     public static bool AreSameLocation(string address1, string address2)

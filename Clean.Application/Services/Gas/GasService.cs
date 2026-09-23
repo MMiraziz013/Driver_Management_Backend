@@ -34,7 +34,7 @@ public class GasService : IGasService
 
     // Safety thresholds
     private const double MIN_FUEL_RESERVE = 5.0;
-    private const double ALLOCATION_TOLERANCE = 0.01;
+    private const double ALLOCATION_TOLERANCE = 5.0;
 
     public GasService(IUnitOfWork uow)
     {
@@ -43,7 +43,7 @@ public class GasService : IGasService
 
     #region Gas Purchase Management
 
-public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IFormFile file, int periodId)
+    public async Task<Response<GasPurchaseSummaryDto>> UploadGasPurchasesAsync(IFormFile file, int periodId)
     {
         try
         {

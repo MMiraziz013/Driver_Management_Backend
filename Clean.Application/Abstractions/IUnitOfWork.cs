@@ -21,6 +21,7 @@ public interface IUnitOfWork : IDisposable
     IBonusSettingsRepository BonusSettings { get; }
     
     IServiceTypeBonusConfigRepository ServiceTypeBonusConfigs { get; }
+    IBonusCalculationExceptionRepository BonusCalculationExceptions { get; }
     
     IExchangeRateRepository ExchangeRates { get; }
     IAccountingReportRepository AccountingReports { get; }

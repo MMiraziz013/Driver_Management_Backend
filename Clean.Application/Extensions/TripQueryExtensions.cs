@@ -43,22 +43,4 @@ public static class TripQueryExtensions
         return CashPaymentIndicators.Any(indicator => 
             trip.PmtMethod.Contains(indicator, StringComparison.OrdinalIgnoreCase));
     }
-    
-    /// <summary>
-    /// Parses vehicle model from ImportedVehiclePlate.
-    /// Example: "Toyota Hiace(01/174FHA)" -> "Toyota Hiace"
-    /// </summary>
-    public static string ParseVehicleModel(string? importedVehiclePlate)
-    {
-        if (string.IsNullOrEmpty(importedVehiclePlate))
-            return "Unknown";
-            
-        var parenIndex = importedVehiclePlate.IndexOf('(');
-        if (parenIndex > 0)
-        {
-            return importedVehiclePlate.Substring(0, parenIndex).Trim();
-        }
-        
-        return importedVehiclePlate.Trim();
-    }
 }
