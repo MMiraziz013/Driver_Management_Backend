@@ -20,6 +20,7 @@ public class UnitOfWork : IUnitOfWork
     private IGasPurchaseRepository? _gasPurchases;
     private IVehicleFuelAllocationRepository? _fuelAllocations;
     private IDriverPeriodStateRepository? _driverPeriodStates;
+    private IFuelSettingsRepository? _fuelSettings;
 
     // Bonus repositories
     private IBonusSettingsRepository? _bonusSettings;
@@ -57,6 +58,7 @@ public class UnitOfWork : IUnitOfWork
     public IGasPurchaseRepository GasPurchases => _gasPurchases ??= new GasPurchaseRepository(_context);
     public IVehicleFuelAllocationRepository FuelAllocations => _fuelAllocations ??= new VehicleFuelAllocationRepository(_context);
     public IDriverPeriodStateRepository DriverPeriodStates => _driverPeriodStates ??= new DriverPeriodStateRepository(_context);
+    public IFuelSettingsRepository FuelSettings => _fuelSettings ??= new FuelSettingsRepository(_context);
 
     // NEW: Bonus repository properties
     public IBonusSettingsRepository BonusSettings => _bonusSettings ??= new BonusSettingsRepository(_context);

@@ -713,6 +713,30 @@ namespace ClassLibrary1.Migrations
                     b.ToTable("filters", (string)null);
                 });
 
+            modelBuilder.Entity("Clean.Domain.Entities.FuelSettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double>("DurationFallbackSpeedKmh")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("double precision")
+                        .HasDefaultValue(15.0);
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("fuel_settings", (string)null);
+                });
+
             modelBuilder.Entity("Clean.Domain.Entities.GasPurchase", b =>
                 {
                     b.Property<int>("Id")
@@ -909,6 +933,9 @@ namespace ClassLibrary1.Migrations
                     b.Property<double?>("DistanceKm")
                         .HasColumnType("double precision");
 
+                    b.Property<double?>("DrivingDurationHours")
+                        .HasColumnType("double precision");
+
                     b.Property<TimeSpan>("GarageInTime")
                         .HasColumnType("interval");
 
@@ -1093,6 +1120,11 @@ namespace ClassLibrary1.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasDefaultValue("");
+
+                    b.Property<double>("IdleFuelConsumptionPerHour")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("double precision")
+                        .HasDefaultValue(0.0);
 
                     b.Property<double>("InitialFuelLevel")
                         .ValueGeneratedOnAdd()

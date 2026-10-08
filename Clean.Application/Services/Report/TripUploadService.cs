@@ -208,6 +208,7 @@ public class TripUploadService
             var distanceCalculatedCount = 0;
             var distanceFailedCount = 0;
             var noCoordinatesCount = 0;
+            var fallbackSpeedKmh = await _uow.FuelSettings.GetDurationFallbackSpeedKmhAsync();
 
             foreach (var p in pending)
             {
@@ -231,11 +232,12 @@ public class TripUploadService
                             var distanceResult = await CalculateTripDistanceAsync(
                                 p.PickUp!, p.DropOff!, p.Stops,
                                 p.Trip.GetStartDateTime(), p.Trip.GetEndDateTime(),
-                                p.ServiceTypeName, coordinateMap);
+                                p.ServiceTypeName, coordinateMap, fallbackSpeedKmh);
 
-                            if (distanceResult.StatusCode == 200)
+                            if (distanceResult.StatusCode == 200 && distanceResult.Data != null)
                             {
-                                p.Trip.DistanceKm = distanceResult.Data;
+                                p.Trip.DistanceKm = distanceResult.Data.DistanceKm;
+                                p.Trip.DrivingDurationHours = distanceResult.Data.DurationHours;
                                 distanceCalculatedCount++;
                             }
                             else
@@ -296,31 +298,35 @@ public class TripUploadService
     /// Distance for one trip. Parsing/geocoding already done — this only routes
     /// pre-resolved coordinates through the Directions API via coordinateMap.
     /// </summary>
-    private async Task<Response<double>> CalculateTripDistanceAsync(
+    private async Task<Response<RouteMetricsDto>> CalculateTripDistanceAsync(
         LocationWithCoordinates pickUp,
         LocationWithCoordinates dropOff,
         List<LocationWithCoordinates> stops,
         DateTime tripStart,
         DateTime tripEnd,
         string serviceTypeName,
-        IReadOnlyDictionary<string, (double Lat, double Lon)> coordinateMap)
+        IReadOnlyDictionary<string, (double Lat, double Lon)> coordinateMap,
+        double fallbackSpeedKmh)
     {
         try
         {
             bool isFieldTrip = serviceTypeName.Equals("Field Trip", StringComparison.OrdinalIgnoreCase);
-            bool isRoundTrip = serviceTypeName.Equals("Round Trip", StringComparison.OrdinalIgnoreCase);
             bool isCustomItinerary = serviceTypeName.Equals("Custom Itinerary", StringComparison.OrdinalIgnoreCase);
 
             double apiDistance = 0;
+            double? apiDrivingHours = null;
 
             if (isFieldTrip)
             {
                 // Field Trip: route as-is (no office routing)
-                var result = await _mapboxService.CalculateDistanceAsync(
+                var result = await _mapboxService.CalculateRouteAsync(
                     pickUp, dropOff, stops, coordinateMap);
 
-                if (result.StatusCode == 200)
-                    apiDistance = result.Data;
+                if (result.StatusCode == 200 && result.Data != null)
+                {
+                    apiDistance = result.Data.DistanceKm;
+                    apiDrivingHours = result.Data.DurationHours;
+                }
             }
             else
             {
@@ -329,31 +335,35 @@ public class TripUploadService
                 fullRouteStops.AddRange(stops);
                 fullRouteStops.Add(dropOff);
 
-                var result = await _mapboxService.CalculateDistanceAsync(
+                var result = await _mapboxService.CalculateRouteAsync(
                     OFFICE_LOCATION, OFFICE_LOCATION, fullRouteStops, coordinateMap);
 
-                if (result.StatusCode == 200)
-                    apiDistance = result.Data;
+                if (result.StatusCode == 200 && result.Data != null)
+                {
+                    apiDistance = result.Data.DistanceKm;
+                    apiDrivingHours = result.Data.DurationHours;
+                }
             }
 
             // Duration-based fallback
             var hours = (tripEnd - tripStart).TotalHours;
-            var durationEstimate = hours * 15.0;
+            var durationEstimate = hours * fallbackSpeedKmh;
 
-            double finalDistance;
+            // Custom Itinerary takes the larger of the two; everything else falls back only when routing gave nothing
+            bool useDurationEstimate = isCustomItinerary
+                ? durationEstimate > apiDistance
+                : apiDistance <= 0;
 
-            if (isRoundTrip)
-                finalDistance = apiDistance > 0 ? apiDistance : durationEstimate;
-            else if (isCustomItinerary)
-                finalDistance = Math.Max(apiDistance, durationEstimate);
-            else
-                finalDistance = apiDistance > 0 ? apiDistance : durationEstimate;
-
-            return new Response<double>(HttpStatusCode.OK, Math.Round(finalDistance, 2));
+            return new Response<RouteMetricsDto>(HttpStatusCode.OK, new RouteMetricsDto
+            {
+                DistanceKm = Math.Round(useDurationEstimate ? durationEstimate : apiDistance, 2),
+                // An estimated distance already spreads driving over the whole trip, so it carries no idle time
+                DurationHours = useDurationEstimate ? null : apiDrivingHours
+            });
         }
         catch (Exception ex)
         {
-            return new Response<double>(HttpStatusCode.InternalServerError, new List<string> { ex.Message });
+            return new Response<RouteMetricsDto>(HttpStatusCode.InternalServerError, new List<string> { ex.Message });
         }
     }
 }

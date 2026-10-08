@@ -17,6 +17,7 @@ public interface IUnitOfWork : IDisposable
     IGasPurchaseRepository GasPurchases { get; }
     IVehicleFuelAllocationRepository FuelAllocations { get; }
     IDriverPeriodStateRepository DriverPeriodStates { get; } 
+    IFuelSettingsRepository FuelSettings { get; }
     
     IBonusSettingsRepository BonusSettings { get; }
     

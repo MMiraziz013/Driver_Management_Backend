@@ -36,6 +36,7 @@ public class DataContext : IdentityDbContext<User, IdentityRole<int>, int>, IDat
     public DbSet<VehicleFuelAllocation> VehicleFuelAllocations { get; set; }
 
     public DbSet<DriverPeriodState> DriverPeriodStates { get; set; }
+    public DbSet<FuelSettings> FuelSettings { get; set; }
     public DbSet<BonusSettings> BonusSettings { get; set; }
     public DbSet<ServiceTypeBonusConfig> ServiceTypeBonusConfigs { get; set; }
     public DbSet<BonusCalculationException> BonusCalculationExceptions { get; set; }

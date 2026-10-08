@@ -45,7 +45,7 @@ public class MapboxService : IMapboxService
     ///   2. Parallel HTTP geocoding for ONLY the cache misses (no DbContext touched here).
     ///   3. ONE batched DB write for the newly geocoded addresses.
     /// Returns a map keyed by the CLEANED address (so callers must clean before lookup,
-    /// or just use CalculateDistanceAsync which cleans internally).
+    /// or just use CalculateRouteAsync which cleans internally).
     /// </summary>
     public async Task<Dictionary<string, (double Lat, double Lon)>> ResolveAddressesAsync(
         IEnumerable<string> rawAddresses)
@@ -126,12 +126,12 @@ public class MapboxService : IMapboxService
     // ============================================================
 
     /// <summary>
-    /// Calculate driving distance (KILOMETERS) between pickup and dropoff with optional stops.
+    /// Calculate driving distance (KILOMETERS) and driving time (HOURS) between pickup and dropoff with optional stops.
     /// If <paramref name="coordinateMap"/> is supplied (from ResolveAddressesAsync), this method
     /// does ZERO geocoding and ZERO DB access — it's a pure Directions API call.
     /// If the map is null it falls back to the old per-address geocode (backwards compatible).
     /// </summary>
-    public async Task<Response<double>> CalculateDistanceAsync(
+    public async Task<Response<RouteMetricsDto>> CalculateRouteAsync(
         LocationWithCoordinates pickup,
         LocationWithCoordinates dropoff,
         List<LocationWithCoordinates>? stops = null,
@@ -143,7 +143,7 @@ public class MapboxService : IMapboxService
             var dCoord = await ResolveAsync(dropoff, coordinateMap);
 
             if (pCoord is null || dCoord is null)
-                return new Response<double>(HttpStatusCode.BadRequest, "Could not resolve locations");
+                return new Response<RouteMetricsDto>(HttpStatusCode.BadRequest, "Could not resolve locations");
 
             // Build waypoint path as (Lon, Lat) for Mapbox.
             var path = new List<(double Lon, double Lat)> { (pCoord.Value.Lon, pCoord.Value.Lat) };
@@ -166,18 +166,20 @@ public class MapboxService : IMapboxService
             if (path.Count == 2 &&
                 AreCoordinatesClose(pCoord.Value.Lat, pCoord.Value.Lon, dCoord.Value.Lat, dCoord.Value.Lon))
             {
-                return new Response<double>(HttpStatusCode.OK, 0.0);
+                return new Response<RouteMetricsDto>(HttpStatusCode.OK, new RouteMetricsDto());
             }
 
-            var distanceMeters = await GetDirectionsDistanceAsync(path);
-            return distanceMeters.HasValue
-                ? new Response<double>(HttpStatusCode.OK, distanceMeters.Value / 1000.0)
-                : new Response<double>(HttpStatusCode.OK, 0.0);
+            var route = await GetDirectionsRouteAsync(path);
+            return new Response<RouteMetricsDto>(HttpStatusCode.OK, new RouteMetricsDto
+            {
+                DistanceKm = (route?.Distance ?? 0) / 1000.0,
+                DurationHours = (route?.Duration ?? 0) / 3600.0
+            });
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Mapbox] ❌ CalculateDistance error: {ex.Message}");
-            return new Response<double>(HttpStatusCode.InternalServerError, new List<string> { ex.Message });
+            Console.WriteLine($"[Mapbox] ❌ CalculateRoute error: {ex.Message}");
+            return new Response<RouteMetricsDto>(HttpStatusCode.InternalServerError, new List<string> { ex.Message });
         }
     }
 
@@ -266,7 +268,7 @@ public class MapboxService : IMapboxService
     //  Directions API
     // ============================================================
 
-    private async Task<double?> GetDirectionsDistanceAsync(List<(double Lon, double Lat)> coordinates)
+    private async Task<RouteDto?> GetDirectionsRouteAsync(List<(double Lon, double Lat)> coordinates)
     {
         try
         {
@@ -286,8 +288,7 @@ public class MapboxService : IMapboxService
             var json = await response.Content.ReadAsStringAsync();
             var result = JsonSerializer.Deserialize<DirectionsResponseDto>(json, JsonOpts);
 
-            var route = result?.Routes?.FirstOrDefault();
-            return route?.Distance;
+            return result?.Routes?.FirstOrDefault();
         }
         catch (Exception ex)
         {

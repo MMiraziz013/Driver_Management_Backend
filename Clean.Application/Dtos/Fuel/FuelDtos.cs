@@ -30,6 +30,7 @@ public class UpdateVehicleFuelConfigRequest
     public int VehicleId { get; set; }
     public double FuelTankCapacity { get; set; }
     public double FuelConsumptionPer100Km { get; set; }
+    public double? IdleFuelConsumptionPerHour { get; set; }
     public string FuelType { get; set; } = string.Empty;
     public double? InitialFuelLevel { get; set; }
 }
@@ -98,10 +99,12 @@ public class VehicleFuelStatusDto
     public string FuelType { get; set; } = string.Empty;
     public double TankCapacity { get; set; }
     public double ConsumptionPer100Km { get; set; }
+    public double IdleConsumptionPerHour { get; set; }
 
     // Period-specific data
     public double InitialFuelLevel { get; set; }
     public double TotalDistanceDriven { get; set; }
+    public double TotalIdleHours { get; set; }
     public double FuelConsumed { get; set; }
     public double FuelAllocated { get; set; }
     public double CurrentFuelLevel { get; set; }

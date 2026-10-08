@@ -63,6 +63,7 @@ public class VehicleRepository : IVehicleRepository
         toUpdate.RequiredDriverCategory = vehicle.RequiredDriverCategory;
         toUpdate.UpdatedAt = DateTime.UtcNow;
         toUpdate.FuelConsumptionPer100Km = vehicle.FuelConsumptionPer100Km;
+        toUpdate.IdleFuelConsumptionPerHour = vehicle.IdleFuelConsumptionPerHour;
         toUpdate.FuelType = vehicle.FuelType;
         toUpdate.InitialFuelLevel = vehicle.InitialFuelLevel;
         toUpdate.FuelTankCapacity = vehicle.FuelTankCapacity;

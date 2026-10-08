@@ -98,6 +98,10 @@ public class TripService : ITripService
 
             if (dto.DistanceKm.HasValue)
             {
+                // A manually changed distance has no routed driving time behind it
+                if (trip.DistanceKm != dto.DistanceKm.Value)
+                    trip.DrivingDurationHours = null;
+
                 trip.DistanceKm = dto.DistanceKm.Value;
                 trip.CoordinatesResolved = true;
             }
@@ -154,14 +158,15 @@ public class TripService : ITripService
             var distanceResult = await CalculateTripDistanceAsync(
                 routingDetails, tripStart, tripEnd, serviceTypeName);
 
-            if (distanceResult.StatusCode == 200)
+            if (distanceResult.StatusCode == 200 && distanceResult.Data != null)
             {
-                trip.DistanceKm = distanceResult.Data;
+                trip.DistanceKm = distanceResult.Data.DistanceKm;
+                trip.DrivingDurationHours = distanceResult.Data.DurationHours;
                 trip.CoordinatesResolved = true;
                 _uow.Trips.Update(trip);
                 await _uow.CompleteAsync();
 
-                return new Response<double?>(HttpStatusCode.OK, distanceResult.Data);
+                return new Response<double?>(HttpStatusCode.OK, distanceResult.Data.DistanceKm);
             }
             else
             {
@@ -225,6 +230,8 @@ public class TripService : ITripService
             CompanyName = trip.CompanyName,
             RoutingDetails = trip.RoutingDetails,
             DistanceKm = trip.DistanceKm,
+            DrivingDurationHours = trip.DrivingDurationHours,
+            IdleHours = Math.Round(trip.GetIdleHours(), 2),
             CoordinatesResolved = trip.CoordinatesResolved,
             IncludedInReport = trip.IncludedInReport,
             ImportedDriverName = trip.ImportedDriverName,
@@ -239,7 +246,7 @@ public class TripService : ITripService
         };
     }
 
-    private async Task<Response<double>> CalculateTripDistanceAsync(
+    private async Task<Response<RouteMetricsDto>> CalculateTripDistanceAsync(
         string routingDetails,
         DateTime tripStart,
         DateTime tripEnd,
@@ -252,22 +259,25 @@ public class TripService : ITripService
             if (parsed.PickUp == null || string.IsNullOrWhiteSpace(parsed.PickUp.Address) ||
                 parsed.DropOff == null || string.IsNullOrWhiteSpace(parsed.DropOff.Address))
             {
-                return new Response<double>(HttpStatusCode.BadRequest, "Missing pickup or dropoff");
+                return new Response<RouteMetricsDto>(HttpStatusCode.BadRequest, "Missing pickup or dropoff");
             }
 
             bool isFieldTrip = serviceTypeName.Equals("Field Trip", StringComparison.OrdinalIgnoreCase);
-            bool isRoundTrip = serviceTypeName.Equals("Round Trip", StringComparison.OrdinalIgnoreCase);
             bool isCustomItinerary = serviceTypeName.Equals("Custom Itinerary", StringComparison.OrdinalIgnoreCase);
 
             double apiDistance = 0;
+            double? apiDrivingHours = null;
 
             if (isFieldTrip)
             {
-                var result = await _mapboxService.CalculateDistanceAsync(
+                var result = await _mapboxService.CalculateRouteAsync(
                     parsed.PickUp, parsed.DropOff, parsed.Stops ?? new List<LocationWithCoordinates>());
 
-                if (result.StatusCode == 200)
-                    apiDistance = result.Data;
+                if (result.StatusCode == 200 && result.Data != null)
+                {
+                    apiDistance = result.Data.DistanceKm;
+                    apiDrivingHours = result.Data.DurationHours;
+                }
             }
             else
             {
@@ -278,36 +288,35 @@ public class TripService : ITripService
 
                 fullRouteStops.Add(parsed.DropOff);
 
-                var result = await _mapboxService.CalculateDistanceAsync(
+                var result = await _mapboxService.CalculateRouteAsync(
                     OFFICE_LOCATION, OFFICE_LOCATION, fullRouteStops);
 
-                if (result.StatusCode == 200)
-                    apiDistance = result.Data;
+                if (result.StatusCode == 200 && result.Data != null)
+                {
+                    apiDistance = result.Data.DistanceKm;
+                    apiDrivingHours = result.Data.DurationHours;
+                }
             }
 
             var hours = (tripEnd - tripStart).TotalHours;
-            var durationEstimate = hours * 15.0;
+            var fallbackSpeedKmh = await _uow.FuelSettings.GetDurationFallbackSpeedKmhAsync();
+            var durationEstimate = hours * fallbackSpeedKmh;
 
-            double finalDistance;
+            // Custom Itinerary takes the larger of the two; everything else falls back only when routing gave nothing
+            bool useDurationEstimate = isCustomItinerary
+                ? durationEstimate > apiDistance
+                : apiDistance <= 0;
 
-            if (isRoundTrip)
+            return new Response<RouteMetricsDto>(HttpStatusCode.OK, new RouteMetricsDto
             {
-                finalDistance = apiDistance > 0 ? apiDistance : durationEstimate;
-            }
-            else if (isCustomItinerary)
-            {
-                finalDistance = Math.Max(apiDistance, durationEstimate);
-            }
-            else
-            {
-                finalDistance = apiDistance > 0 ? apiDistance : durationEstimate;
-            }
-
-            return new Response<double>(HttpStatusCode.OK, Math.Round(finalDistance, 2));
+                DistanceKm = Math.Round(useDurationEstimate ? durationEstimate : apiDistance, 2),
+                // An estimated distance already spreads driving over the whole trip, so it carries no idle time
+                DurationHours = useDurationEstimate ? null : apiDrivingHours
+            });
         }
         catch (Exception ex)
         {
-            return new Response<double>(HttpStatusCode.InternalServerError, new List<string> { ex.Message });
+            return new Response<RouteMetricsDto>(HttpStatusCode.InternalServerError, new List<string> { ex.Message });
         }
     }
 }

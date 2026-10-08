@@ -29,6 +29,12 @@ public class Vehicle
     public double FuelConsumptionPer100Km { get; set; }
 
     /// <summary>
+    /// Fuel burned per hour while the engine runs without driving (waiting, A/C, heating), in liters
+    /// Example: 1.2 means 1.2 liters per idle hour. 0 disables idle fuel for this vehicle
+    /// </summary>
+    public double IdleFuelConsumptionPerHour { get; set; }
+
+    /// <summary>
     /// Type of fuel used by this vehicle: "АИ-92", "АИ-95", or "ДТ"
     /// </summary>
     public string FuelType { get; set; } = string.Empty;
@@ -78,6 +84,22 @@ public class Vehicle
     public double CalculateFuelConsumption(double distanceKm)
     {
         return distanceKm * (FuelConsumptionPer100Km / 100.0);
+    }
+
+    /// <summary>
+    /// Calculate fuel consumed by a trip: driving fuel for its distance plus idle fuel for its idle hours
+    /// </summary>
+    public double CalculateFuelConsumption(Trip trip)
+    {
+        return CalculateFuelConsumption(trip.DistanceKm ?? 0) + trip.GetIdleHours() * IdleFuelConsumptionPerHour;
+    }
+
+    /// <summary>
+    /// Calculate total fuel consumed by a set of trips (driving + idle)
+    /// </summary>
+    public double CalculateFuelConsumption(IEnumerable<Trip> trips)
+    {
+        return trips.Sum(CalculateFuelConsumption);
     }
 
     /// <summary>

@@ -45,6 +45,9 @@ public class VehicleConfigurations : IEntityTypeConfiguration<Vehicle>
         builder.Property(v => v.FuelConsumptionPer100Km)
             .HasDefaultValue(0);
 
+        builder.Property(v => v.IdleFuelConsumptionPerHour)
+            .HasDefaultValue(0);
+
         builder.Property(v => v.FuelType)
             .HasMaxLength(20)
             .HasDefaultValue("");

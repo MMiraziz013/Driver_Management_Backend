@@ -82,9 +82,9 @@ public class FuelFinalizationService
             .Where(t => t.Assignments.Any(a => a.VehicleId == vehicle.Id && !a.HasConflict))
             .ToList();
 
-        // Calculate fuel consumed based on distance
+        // Calculate fuel consumed (driving distance + idle time)
         double totalDistance = vehicleTrips.Sum(t => t.DistanceKm ?? 0);
-        double fuelConsumed = vehicle.CalculateFuelConsumption(totalDistance);
+        double fuelConsumed = vehicle.CalculateFuelConsumption(vehicleTrips);
 
         // Get total fuel allocated
         double fuelAllocated = allocations

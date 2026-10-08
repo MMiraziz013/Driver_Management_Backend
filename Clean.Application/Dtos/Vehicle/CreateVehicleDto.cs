@@ -13,6 +13,11 @@ public class CreateVehicleDto
     public double FuelTankCapacity { get; set; }
     
     public double FuelConsumptionPer100Km { get; set; }
+
+    /// <summary>
+    /// Fuel burned per idle hour (engine running, not driving), in liters
+    /// </summary>
+    public double IdleFuelConsumptionPerHour { get; set; }
     
     /// <summary>
     /// Type of fuel used by this vehicle: "АИ-92", "АИ-95", or "ДТ"

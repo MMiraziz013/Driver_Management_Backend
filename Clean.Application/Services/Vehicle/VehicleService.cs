@@ -31,6 +31,7 @@ public class VehicleService : IVehicleService
                 IsActive = v.IsActive,
                 FuelTankCapacity = v.FuelTankCapacity,
                 FuelConsumptionPer100Km = v.FuelConsumptionPer100Km,
+                IdleFuelConsumptionPerHour = v.IdleFuelConsumptionPerHour,
                 FuelType = v.FuelType,
                 InitialFuelLevel = v.InitialFuelLevel,
                 CurrentMileage = v.CurrentMileage,
@@ -64,6 +65,7 @@ public class VehicleService : IVehicleService
                 IsActive = v.IsActive,
                 FuelTankCapacity = v.FuelTankCapacity,
                 FuelConsumptionPer100Km = v.FuelConsumptionPer100Km,
+                IdleFuelConsumptionPerHour = v.IdleFuelConsumptionPerHour,
                 FuelType = v.FuelType,
                 InitialFuelLevel = v.InitialFuelLevel,
                 CurrentMileage = v.CurrentMileage,
@@ -103,6 +105,7 @@ public class VehicleService : IVehicleService
                 IsActive = true,
                 FuelTankCapacity = dto.FuelTankCapacity,
                 FuelConsumptionPer100Km = dto.FuelConsumptionPer100Km,
+                IdleFuelConsumptionPerHour = dto.IdleFuelConsumptionPerHour,
                 FuelType = dto.FuelType,
                 InitialFuelLevel = dto.InitialFuelLevel,
                 CurrentMileage = dto.CurrentMileage,
@@ -165,6 +168,11 @@ public class VehicleService : IVehicleService
             toUpdate.FuelConsumptionPer100Km = dto.FuelConsumptionPer100Km;
         }
 
+        if (dto.IdleFuelConsumptionPerHour >= 0)
+        {
+            toUpdate.IdleFuelConsumptionPerHour = dto.IdleFuelConsumptionPerHour.Value;
+        }
+
         if (string.IsNullOrEmpty(dto.FuelType) == false)
         {
             toUpdate.FuelType = dto.FuelType;
@@ -213,6 +221,7 @@ public class VehicleService : IVehicleService
             IsActive = updated.IsActive,
             FuelTankCapacity = updated.FuelTankCapacity,
             FuelConsumptionPer100Km = updated.FuelConsumptionPer100Km,
+            IdleFuelConsumptionPerHour = updated.IdleFuelConsumptionPerHour,
             FuelType = updated.FuelType,
             InitialFuelLevel = updated.InitialFuelLevel,
             CurrentMileage = updated.CurrentMileage,

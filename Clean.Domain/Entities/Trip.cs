@@ -15,6 +15,12 @@ public class Trip
     
     public double? DistanceKm { get; set; } // Calculated distance in kilometers
 
+    /// <summary>
+    /// Routed driving time in hours for the distance above.
+    /// Null when the distance was not routed (estimated from duration or entered manually) - such trips have no idle time.
+    /// </summary>
+    public double? DrivingDurationHours { get; set; }
+
     public int VehicleTypeId { get; set; }
     public VehicleType VehicleType { get; set; } = null!;
 
@@ -61,5 +67,17 @@ public class Trip
         }
 
         return end;
+    }
+
+    /// <summary>
+    /// Hours of the trip not spent driving (garage-out to garage-in minus routed driving time)
+    /// </summary>
+    public double GetIdleHours()
+    {
+        if (!DrivingDurationHours.HasValue)
+            return 0;
+
+        var totalHours = (GetEndDateTime() - GetStartDateTime()).TotalHours;
+        return Math.Max(0, totalHours - DrivingDurationHours.Value);
     }
 }

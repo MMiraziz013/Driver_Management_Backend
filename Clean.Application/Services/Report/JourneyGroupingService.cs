@@ -181,7 +181,7 @@ public class JourneyGroupingService
         double fuelConsumed = 0;
         if (assignment.Vehicle != null)
         {
-            fuelConsumed = assignment.Vehicle.CalculateFuelConsumption(totalDistance);
+            fuelConsumed = assignment.Vehicle.CalculateFuelConsumption(trips);
         }
 
         // Get unique companies

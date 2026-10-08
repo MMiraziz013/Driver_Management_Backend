@@ -272,6 +272,8 @@ public class GasService : IGasService
 
             vehicle.FuelTankCapacity = request.FuelTankCapacity;
             vehicle.FuelConsumptionPer100Km = request.FuelConsumptionPer100Km;
+            if (request.IdleFuelConsumptionPerHour >= 0)
+                vehicle.IdleFuelConsumptionPerHour = request.IdleFuelConsumptionPerHour.Value;
             vehicle.FuelType = NormalizeFuelType(request.FuelType);
 
             if (request.InitialFuelLevel.HasValue)
@@ -308,6 +310,8 @@ public class GasService : IGasService
 
                 vehicle.FuelTankCapacity = request.FuelTankCapacity;
                 vehicle.FuelConsumptionPer100Km = request.FuelConsumptionPer100Km;
+                if (request.IdleFuelConsumptionPerHour >= 0)
+                    vehicle.IdleFuelConsumptionPerHour = request.IdleFuelConsumptionPerHour.Value;
                 vehicle.FuelType = NormalizeFuelType(request.FuelType);
 
                 if (request.InitialFuelLevel.HasValue)
@@ -346,6 +350,7 @@ public class GasService : IGasService
                 FuelType = v.FuelType,
                 TankCapacity = v.FuelTankCapacity,
                 ConsumptionPer100Km = v.FuelConsumptionPer100Km,
+                IdleConsumptionPerHour = v.IdleFuelConsumptionPerHour,
                 InitialFuelLevel = v.InitialFuelLevel,
                 Status = string.IsNullOrEmpty(v.FuelType) ? "NOT_CONFIGURED" : "CONFIGURED"
             }).ToList();
@@ -472,7 +477,7 @@ public class GasService : IGasService
                     vehicleTrips = vehicleTrips.ExcludeCashTrips().ToList();
 
                     double totalDistance = vehicleTrips.Sum(t => t.DistanceKm ?? 0);
-                    double totalFuelNeeded = vehicle.CalculateFuelConsumption(totalDistance);
+                    double totalFuelNeeded = vehicle.CalculateFuelConsumption(vehicleTrips);
 
                     vehicleFuelTrackers[vehicle.Id] = new VehicleFuelTracker
                     {
@@ -623,7 +628,7 @@ public class GasService : IGasService
                     foreach (var trip in tripsToday)
                     {
                         double distanceKm = trip.DistanceKm ?? 0;
-                        double fuelUsed = tracker.Vehicle.CalculateFuelConsumption(distanceKm);
+                        double fuelUsed = tracker.Vehicle.CalculateFuelConsumption(trip);
 
                         tracker.CurrentFuelLevel -= fuelUsed;
                         tracker.FuelConsumedSoFar += fuelUsed;
@@ -869,10 +874,12 @@ public class GasService : IGasService
             FuelType = vehicle.FuelType,
             TankCapacity = vehicle.FuelTankCapacity,
             ConsumptionPer100Km = vehicle.FuelConsumptionPer100Km,
+            IdleConsumptionPerHour = vehicle.IdleFuelConsumptionPerHour,
 
             // Period-specific data
             InitialFuelLevel = vehicle.InitialFuelLevel,
             TotalDistanceDriven = tracker.TotalDistanceKm,
+            TotalIdleHours = tracker.TripsByDate.Values.SelectMany(t => t).Sum(t => t.GetIdleHours()),
             FuelConsumed = tracker.FuelConsumedSoFar,
             FuelAllocated = tracker.TotalFuelAllocated,
             CurrentFuelLevel = currentFuelLevel,
@@ -1006,7 +1013,7 @@ public class GasService : IGasService
                 vehicleTrips = vehicleTrips.ExcludeCashTrips().ToList();
 
                 double totalDistance = vehicleTrips.Sum(t => t.DistanceKm ?? 0);
-                double fuelNeeded = vehicle.CalculateFuelConsumption(totalDistance);
+                double fuelNeeded = vehicle.CalculateFuelConsumption(vehicleTrips);
                 double endingLevel = vehicle.InitialFuelLevel - fuelNeeded;
 
                 var sameTypePurchases = gasPurchases.Where(p => AreFuelTypesCompatible(vehicle.FuelType, p.FuelType)).Sum(p => p.LitersAmount);
@@ -1024,8 +1031,10 @@ public class GasService : IGasService
                     FuelType = vehicle.FuelType,
                     TankCapacity = vehicle.FuelTankCapacity,
                     ConsumptionPer100Km = vehicle.FuelConsumptionPer100Km,
+                    IdleConsumptionPerHour = vehicle.IdleFuelConsumptionPerHour,
                     InitialFuelLevel = vehicle.InitialFuelLevel,
                     TotalDistanceDriven = totalDistance,
+                    TotalIdleHours = vehicleTrips.Sum(t => t.GetIdleHours()),
                     FuelConsumed = fuelNeeded,
                     FuelAllocated = 0,
                     CurrentFuelLevel = endingLevel
@@ -1145,7 +1154,7 @@ public class GasService : IGasService
                 vehicleTrips = vehicleTrips.ExcludeCashTrips().ToList();
 
                 double totalDistance = vehicleTrips.Sum(t => t.DistanceKm ?? 0);
-                double fuelNeeded = vehicle.CalculateFuelConsumption(totalDistance);
+                double fuelNeeded = vehicle.CalculateFuelConsumption(vehicleTrips);
 
                 var vehicleAllocations = allocations.Where(a => a.VehicleId == vehicle.Id).ToList();
                 double totalAllocated = vehicleAllocations.Sum(a => a.LitersAllocated);
@@ -1160,8 +1169,10 @@ public class GasService : IGasService
                     FuelType = vehicle.FuelType,
                     TankCapacity = vehicle.FuelTankCapacity,
                     ConsumptionPer100Km = vehicle.FuelConsumptionPer100Km,
+                    IdleConsumptionPerHour = vehicle.IdleFuelConsumptionPerHour,
                     InitialFuelLevel = vehicle.InitialFuelLevel,
                     TotalDistanceDriven = totalDistance,
+                    TotalIdleHours = vehicleTrips.Sum(t => t.GetIdleHours()),
                     FuelConsumed = fuelNeeded,
                     FuelAllocated = totalAllocated,
                     CurrentFuelLevel = endingLevel,
@@ -1244,7 +1255,7 @@ public class GasService : IGasService
                 var dayAllocations = allocations.Where(a => a.AllocationDate.Date == date).ToList();
 
                 double distanceToday = dayTrips.Sum(t => t.DistanceKm ?? 0);
-                double fuelUsed = vehicle.CalculateFuelConsumption(distanceToday);
+                double fuelUsed = vehicle.CalculateFuelConsumption(dayTrips);
                 double fuelAdded = dayAllocations.Sum(a => a.LitersAllocated);
 
                 double startingBalance = runningBalance;
@@ -1404,7 +1415,7 @@ public class GasService : IGasService
 
                 // Calculate fuel consumed
                 double totalDistance = vehicleTrips.Sum(t => t.DistanceKm ?? 0);
-                double fuelConsumed = vehicle.CalculateFuelConsumption(totalDistance);
+                double fuelConsumed = vehicle.CalculateFuelConsumption(vehicleTrips);
 
                 // Get fuel allocated to this vehicle
                 double fuelAllocated = allocations
@@ -1531,7 +1542,7 @@ public class GasService : IGasService
                 vehicleTrips = vehicleTrips.ExcludeCashTrips().ToList();
 
                 double totalDistance = vehicleTrips.Sum(t => t.DistanceKm ?? 0);
-                double fuelConsumed = vehicle.CalculateFuelConsumption(totalDistance);
+                double fuelConsumed = vehicle.CalculateFuelConsumption(vehicleTrips);
                 double fuelAllocated = allocations
                     .Where(a => a.VehicleId == vehicle.Id)
                     .Sum(a => a.LitersAllocated);
@@ -1665,7 +1676,7 @@ public class GasService : IGasService
                     vehicleTrips = vehicleTrips.ExcludeCashTrips().ToList();
 
                     double distance = vehicleTrips.Sum(t => t.DistanceKm ?? 0);
-                    double fuelNeeded = vehicle.CalculateFuelConsumption(distance);
+                    double fuelNeeded = vehicle.CalculateFuelConsumption(vehicleTrips);
 
                     totalDistance += distance;
                     totalFuelNeeded += fuelNeeded;
@@ -1761,8 +1772,8 @@ public class GasService : IGasService
         var summarySheet = workbook.Worksheets.Add("Vehicle Summary");
         var summaryHeaders = new[]
         {
-            "Plate #", "Model", "Fuel Type", "Tank Capacity (L)", "Consumption (L/100km)",
-            "Initial Level (L)", "Distance (km)", "Fuel Consumed (L)", "Fuel Allocated (L)",
+            "Plate #", "Model", "Fuel Type", "Tank Capacity (L)", "Consumption (L/100km)", "Idle Rate (L/h)",
+            "Initial Level (L)", "Distance (km)", "Idle Hours", "Fuel Consumed (L)", "Fuel Allocated (L)",
             "Ending Level (L)", "Total Cost (UZS)", "Status"
         };
 
@@ -1781,24 +1792,26 @@ public class GasService : IGasService
             summarySheet.Cell(row, 3).Value = status.FuelType;
             summarySheet.Cell(row, 4).Value = status.TankCapacity;
             summarySheet.Cell(row, 5).Value = status.ConsumptionPer100Km;
-            summarySheet.Cell(row, 6).Value = status.InitialFuelLevel;
-            summarySheet.Cell(row, 7).Value = Math.Round(status.TotalDistanceDriven, 1);
-            summarySheet.Cell(row, 8).Value = Math.Round(status.FuelConsumed, 2);
-            summarySheet.Cell(row, 9).Value = Math.Round(status.FuelAllocated, 2);
-            summarySheet.Cell(row, 10).Value = Math.Round(status.CurrentFuelLevel, 2);
-            summarySheet.Cell(row, 11).Value = status.TotalFuelCostUzs;
-            summarySheet.Cell(row, 12).Value = status.Status;
+            summarySheet.Cell(row, 6).Value = status.IdleConsumptionPerHour;
+            summarySheet.Cell(row, 7).Value = status.InitialFuelLevel;
+            summarySheet.Cell(row, 8).Value = Math.Round(status.TotalDistanceDriven, 1);
+            summarySheet.Cell(row, 9).Value = Math.Round(status.TotalIdleHours, 2);
+            summarySheet.Cell(row, 10).Value = Math.Round(status.FuelConsumed, 2);
+            summarySheet.Cell(row, 11).Value = Math.Round(status.FuelAllocated, 2);
+            summarySheet.Cell(row, 12).Value = Math.Round(status.CurrentFuelLevel, 2);
+            summarySheet.Cell(row, 13).Value = status.TotalFuelCostUzs;
+            summarySheet.Cell(row, 14).Value = status.Status;
 
             switch (status.Status)
             {
                 case "NEGATIVE":
-                    summarySheet.Range(row, 1, row, 12).Style.Fill.BackgroundColor = XLColor.IndianRed;
+                    summarySheet.Range(row, 1, row, 14).Style.Fill.BackgroundColor = XLColor.IndianRed;
                     break;
                 case "OVER_CAPACITY":
-                    summarySheet.Range(row, 1, row, 12).Style.Fill.BackgroundColor = XLColor.Orange;
+                    summarySheet.Range(row, 1, row, 14).Style.Fill.BackgroundColor = XLColor.Orange;
                     break;
                 case "LOW":
-                    summarySheet.Range(row, 1, row, 12).Style.Fill.BackgroundColor = XLColor.Yellow;
+                    summarySheet.Range(row, 1, row, 14).Style.Fill.BackgroundColor = XLColor.Yellow;
                     break;
             }
 
@@ -1991,7 +2004,7 @@ public class GasService : IGasService
 
         // Vehicle summary
         sb.AppendLine("VEHICLE SUMMARY");
-        sb.AppendLine("Plate Number,Fuel Type,Tank Capacity,Initial Level,Distance (km),Fuel Consumed,Fuel Allocated,Final Level,Status");
+        sb.AppendLine("Plate Number,Fuel Type,Tank Capacity,Idle Rate (L/h),Initial Level,Distance (km),Idle Hours,Fuel Consumed,Fuel Allocated,Final Level,Status");
 
         foreach (var vehicle in vehicles)
         {
@@ -1999,13 +2012,14 @@ public class GasService : IGasService
                 .Where(t => t.Assignments.Any(a => a.VehicleId == vehicle.Id && !a.HasConflict))
                 .ToList();
             var distance = vehicleTrips.Sum(t => t.DistanceKm ?? 0);
-            var consumed = vehicle.CalculateFuelConsumption(distance);
+            var idleHours = vehicleTrips.Sum(t => t.GetIdleHours());
+            var consumed = vehicle.CalculateFuelConsumption(vehicleTrips);
             var allocated = allocations.Where(a => a.VehicleId == vehicle.Id).Sum(a => a.LitersAllocated);
             var finalLevel = vehicle.InitialFuelLevel + allocated - consumed;
 
             string status = finalLevel < 0 ? "DEFICIT" : (finalLevel < vehicle.FuelTankCapacity * 0.1 ? "LOW" : "OK");
 
-            sb.AppendLine($"{CsvEscape(vehicle.PlateNumber)},{CsvEscape(vehicle.FuelType)},{vehicle.FuelTankCapacity:F2},{vehicle.InitialFuelLevel:F2},{distance:F2},{consumed:F2},{allocated:F2},{finalLevel:F2},{status}");
+            sb.AppendLine($"{CsvEscape(vehicle.PlateNumber)},{CsvEscape(vehicle.FuelType)},{vehicle.FuelTankCapacity:F2},{vehicle.IdleFuelConsumptionPerHour:F2},{vehicle.InitialFuelLevel:F2},{distance:F2},{idleHours:F2},{consumed:F2},{allocated:F2},{finalLevel:F2},{status}");
         }
 
         return sb.ToString();
@@ -2020,7 +2034,7 @@ public class GasService : IGasService
         var sb = new StringBuilder();
 
         // Header
-        sb.AppendLine("Vehicle,Fuel Type,Tank Capacity,Date,Start Level,Distance (km),Fuel Used,Fuel Added,End Level,Purchase Ref,Trip Refs");
+        sb.AppendLine("Vehicle,Fuel Type,Tank Capacity,Idle Rate (L/h),Date,Start Level,Distance (km),Idle Hours,Fuel Used,Fuel Added,End Level,Purchase Ref,Trip Refs");
 
         foreach (var vehicle in vehicles)
         {
@@ -2053,6 +2067,7 @@ public class GasService : IGasService
             {
                 double startLevel = currentLevel;
                 double distanceToday = 0;
+                double idleHoursToday = 0;
                 double fuelUsedToday = 0;
                 double fuelAddedToday = 0;
                 var purchaseRefs = new List<string>();
@@ -2065,7 +2080,8 @@ public class GasService : IGasService
                     {
                         var dist = trip.DistanceKm ?? 0;
                         distanceToday += dist;
-                        fuelUsedToday += vehicle.CalculateFuelConsumption(dist);
+                        idleHoursToday += trip.GetIdleHours();
+                        fuelUsedToday += vehicle.CalculateFuelConsumption(trip);
                         tripRefs.Add(trip.ConfNumber ?? "N/A");
                     }
                 }
@@ -2085,11 +2101,11 @@ public class GasService : IGasService
 
                 currentLevel += fuelAddedToday;
 
-                sb.AppendLine($"{CsvEscape(vehicle.PlateNumber)},{CsvEscape(vehicle.FuelType)},{vehicle.FuelTankCapacity:F2},{date:yyyy-MM-dd},{startLevel:F2},{distanceToday:F2},{fuelUsedToday:F2},{fuelAddedToday:F2},{currentLevel:F2},{CsvEscape(string.Join("; ", purchaseRefs))},{CsvEscape(string.Join("; ", tripRefs))}");
+                sb.AppendLine($"{CsvEscape(vehicle.PlateNumber)},{CsvEscape(vehicle.FuelType)},{vehicle.FuelTankCapacity:F2},{vehicle.IdleFuelConsumptionPerHour:F2},{date:yyyy-MM-dd},{startLevel:F2},{distanceToday:F2},{idleHoursToday:F2},{fuelUsedToday:F2},{fuelAddedToday:F2},{currentLevel:F2},{CsvEscape(string.Join("; ", purchaseRefs))},{CsvEscape(string.Join("; ", tripRefs))}");
             }
 
             // Add final row for vehicle
-            sb.AppendLine($"{CsvEscape(vehicle.PlateNumber)},{CsvEscape(vehicle.FuelType)},{vehicle.FuelTankCapacity:F2},FINAL,,,,,{currentLevel:F2},,");
+            sb.AppendLine($"{CsvEscape(vehicle.PlateNumber)},{CsvEscape(vehicle.FuelType)},{vehicle.FuelTankCapacity:F2},{vehicle.IdleFuelConsumptionPerHour:F2},FINAL,,,,,,{currentLevel:F2},,");
         }
 
         return sb.ToString();
@@ -2433,6 +2449,7 @@ public class GasService : IGasService
             FuelType = vehicle.FuelType,
             TankCapacity = vehicle.FuelTankCapacity,
             ConsumptionPer100Km = vehicle.FuelConsumptionPer100Km,
+            IdleConsumptionPerHour = vehicle.IdleFuelConsumptionPerHour,
             InitialFuelLevel = vehicle.InitialFuelLevel,
             TotalDistanceDriven = vehicleNeed.TotalDistanceKm,
             FuelConsumed = vehicleNeed.FuelNeeded,

@@ -10,6 +10,8 @@ public class TripDto
     public string CompanyName { get; set; } = string.Empty;
     public string RoutingDetails { get; set; } = string.Empty;
     public double? DistanceKm { get; set; }
+    public double? DrivingDurationHours { get; set; }
+    public double IdleHours { get; set; }
     public bool CoordinatesResolved { get; set; }
     public bool IncludedInReport { get; set; }
     public string? ImportedDriverName { get; set; }

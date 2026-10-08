@@ -25,6 +25,8 @@ public interface IDataContext
     public DbSet<VehicleFuelAllocation> VehicleFuelAllocations { get; set; }
 
     public DbSet<DriverPeriodState> DriverPeriodStates { get; set; }
+
+    public DbSet<FuelSettings> FuelSettings { get; set; }
     
     public DbSet<BonusSettings>  BonusSettings { get; set; }
 

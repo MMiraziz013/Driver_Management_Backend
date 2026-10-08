@@ -5,7 +5,7 @@ namespace Clean.Application.Abstractions;
 
 public interface IMapboxService
 {
-    Task<Response<double>> CalculateDistanceAsync(
+    Task<Response<RouteMetricsDto>> CalculateRouteAsync(
         LocationWithCoordinates pickup,
         LocationWithCoordinates dropoff,
         List<LocationWithCoordinates>? stops = null,
