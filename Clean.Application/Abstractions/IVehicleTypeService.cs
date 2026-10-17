@@ -9,4 +9,6 @@ public interface IVehicleTypeService
     Task<PaginatedResponse<GetVehicleTypeDto>> GetVehicleTypesAsync(PaginationFilter filter);
     Task<Response<GetVehicleTypeDto>> AddVehicleTypeAsync(AddVehicleTypeDto dto); // Added
     Task<Response<GetVehicleTypeDto>> UpdateVehicleTypeAsync(int id, UpdateVehicleTypeDto dto);
+    Task<Response<List<VehicleTypeFallbackDto>>> GetFallbacksAsync(int id);
+    Task<Response<List<VehicleTypeFallbackDto>>> UpdateFallbacksAsync(int id, UpdateVehicleTypeFallbacksDto dto);
 }

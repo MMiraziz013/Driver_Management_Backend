@@ -43,6 +43,22 @@ public class VehicleTypeController : Controller
         return StatusCode((int)result.StatusCode, result);
     }
 
+    [HttpGet("{id:int}/fallbacks")]
+    [PermissionAuthorize(PermissionConstants.VehicleTypes.View)]
+    public async Task<IActionResult> GetFallbacks(int id)
+    {
+        var result = await _vehicleTypeService.GetFallbacksAsync(id);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPut("{id:int}/fallbacks")]
+    [PermissionAuthorize(PermissionConstants.VehicleTypes.Manage)]
+    public async Task<IActionResult> UpdateFallbacks(int id, [FromBody] UpdateVehicleTypeFallbacksDto dto)
+    {
+        var result = await _vehicleTypeService.UpdateFallbacksAsync(id, dto);
+        return StatusCode(result.StatusCode, result);
+    }
+
     //TODO: Implement these features below
 
     [HttpDelete]

@@ -44,6 +44,17 @@ public class ReportController : Controller
         return StatusCode(response.StatusCode, response);
     }
 
+    /// <summary>
+    /// Retry conflicting trips on their fallback vehicle types, keeping successful assignments.
+    /// </summary>
+    [HttpPost("resolve-conflicts/{periodId}")]
+    [PermissionAuthorize(PermissionConstants.ReportPeriods.Manage)]
+    public async Task<IActionResult> ResolveConflictsAsync(int periodId)
+    {
+        var response = await _reportService.ResolveConflictsAsync(periodId);
+        return StatusCode(response.StatusCode, response);
+    }
+
     [HttpGet]
     [PermissionAuthorize(PermissionConstants.ReportPeriods.View)]
     public async Task<IActionResult> GetAllPeriodsAsync()

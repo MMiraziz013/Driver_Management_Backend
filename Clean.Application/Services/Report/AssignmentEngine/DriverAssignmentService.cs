@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using Clean.Application.Abstractions;
+using Clean.Application.Dtos.Report;
 using Clean.Application.Dtos.Responses;
 using Clean.Application.Extensions;
 using Clean.Domain.Entities;
@@ -136,6 +137,157 @@ public class DriverAssignmentService
         }
     }
 
+    /// <summary>
+    /// Retry the conflicting trips of a period on their fallback vehicle types, keeping every
+    /// successful assignment as it is. A trip that finds a vehicle and driver is moved to that type.
+    /// </summary>
+    public async Task<Response<ResolveConflictsResultDto>> ResolveConflictsAsync(int periodId)
+    {
+        try
+        {
+            var period = await _uow.ReportPeriods.GetWithAssignmentsAsync(periodId);
+            if (period == null)
+                return new Response<ResolveConflictsResultDto>(HttpStatusCode.NotFound, "Period not found.");
+
+            if (period.IsFinalized || period.IsAssignmentFinalized)
+            {
+                return new Response<ResolveConflictsResultDto>(HttpStatusCode.BadRequest,
+                    "Cannot resolve conflicts on a finalized period. Revert finalization first.");
+            }
+
+            var assignments = period.Trips.SelectMany(t => t.Assignments).ToList();
+            if (!assignments.Any())
+            {
+                return new Response<ResolveConflictsResultDto>(HttpStatusCode.BadRequest,
+                    "No assignments found for this period. Run assignment first.");
+            }
+
+            await _vehicleFilters.LoadUnavailablePeriodsForRangeAsync(period.StartDate, period.EndDate);
+
+            // This period's assignments live in the pending list, so drivers must not carry them as well
+            var drivers = await _uow.Drivers.GetActiveDriversWithDetailsExcludingPeriodAsync(periodId);
+            var vehicles = (await _uow.Vehicles.GetAllAsync())
+                .Where(v => v.IsActive)
+                .Where(v => _vehicleFilters.IsVehicleAvailableInPeriod(v, period.StartDate, period.EndDate))
+                .ToList();
+
+            var vehicleTypes = await _uow.Context.VehicleTypes.ToDictionaryAsync(vt => vt.Id);
+            var fallbacks = await _uow.Context.VehicleTypeFallbacks.AsNoTracking().ToListAsync();
+
+            var allTrips = period.Trips.ExcludeCashTrips().ToList();
+
+            // Rebuild the trackers from the assignments that are kept
+            var vehicleWorkload = vehicles.ToDictionary(v => v.Id, v => 0);
+            var driverWorkload = drivers.ToDictionary(d => d.Id, d => 0);
+            var vehicleDriverCount = new Dictionary<int, HashSet<int>>();
+
+            foreach (var a in assignments.Where(a => !a.HasConflict))
+            {
+                if (a.VehicleId.HasValue)
+                    vehicleWorkload[a.VehicleId.Value] = vehicleWorkload.GetValueOrDefault(a.VehicleId.Value) + 1;
+                if (a.DriverId.HasValue)
+                    driverWorkload[a.DriverId.Value] = driverWorkload.GetValueOrDefault(a.DriverId.Value) + 1;
+            }
+
+            var conflicts = assignments
+                .Where(a => a.HasConflict)
+                .OrderBy(a => a.Trip.PickUpDate)
+                .ThenBy(a => a.Trip.GarageOutTime)
+                .ToList();
+
+            var result = new ResolveConflictsResultDto { TotalConflicts = conflicts.Count };
+
+            Console.WriteLine($"\n=== RESOLVING {conflicts.Count} CONFLICTS ===");
+
+            foreach (var conflict in conflicts)
+            {
+                var trip = conflict.Trip;
+                var originalTypeName = vehicleTypes.GetValueOrDefault(trip.VehicleTypeId)?.Name ?? "";
+
+                var item = new ResolvedConflictItemDto
+                {
+                    TripId = trip.Id,
+                    ConfNumber = trip.ConfNumber,
+                    PickUpDate = trip.PickUpDate,
+                    OriginalVehicleType = originalTypeName
+                };
+                result.Items.Add(item);
+
+                // Field trip conflicts come from the imported driver/plate, not from the vehicle type
+                if (trip.ServiceType?.Name.Equals("Field Trip", StringComparison.OrdinalIgnoreCase) ?? false)
+                {
+                    item.Status = "Skipped";
+                    item.Reason = "Field trip - fix the imported driver/vehicle manually";
+                    result.Skipped++;
+                    continue;
+                }
+
+                var candidates = VehicleTypeFallbacks.GetCandidates(trip.VehicleTypeId, fallbacks);
+                if (!candidates.Any())
+                {
+                    item.Status = "Unresolved";
+                    item.Reason = $"No fallback vehicle types configured for {originalTypeName}";
+                    result.Remaining++;
+                    continue;
+                }
+
+                Console.WriteLine($"\n--- Trip {trip.ConfNumber} ({trip.GetStartDateTime():MM-dd HH:mm}), {originalTypeName} ---");
+
+                foreach (var candidateTypeId in candidates)
+                {
+                    Console.WriteLine($"Trying {vehicleTypes.GetValueOrDefault(candidateTypeId)?.Name}");
+
+                    var (driver, vehicle, _) = TryAssignTrip(
+                        trip, candidateTypeId, allTrips, drivers, vehicles, assignments,
+                        vehicleWorkload, driverWorkload, vehicleDriverCount, null);
+
+                    if (driver == null || vehicle == null)
+                        continue;
+
+                    var newType = vehicleTypes[candidateTypeId];
+
+                    // Only scalar keys are set: drivers are untracked and must not be attached
+                    conflict.DriverId = driver.Id;
+                    conflict.VehicleId = vehicle.Id;
+                    conflict.HasConflict = false;
+                    conflict.AssignmentType = AssignmentType.Auto;
+                    conflict.Notes = $"Resolved: vehicle type {originalTypeName} → {newType.Name}";
+
+                    trip.VehicleTypeId = newType.Id;
+                    trip.VehicleType = newType;
+
+                    item.Status = "Resolved";
+                    item.NewVehicleType = newType.Name;
+                    item.DriverName = driver.FullName;
+                    item.VehiclePlate = vehicle.PlateNumber;
+                    result.Resolved++;
+                    break;
+                }
+
+                if (item.Status != "Resolved")
+                {
+                    item.Status = "Unresolved";
+                    item.Reason = $"No vehicle or qualified driver available in fallback types " +
+                                  $"({string.Join(", ", candidates.Select(id => vehicleTypes.GetValueOrDefault(id)?.Name))})";
+                    result.Remaining++;
+                }
+            }
+
+            await _uow.CompleteAsync();
+
+            var message = $"Resolved {result.Resolved} of {result.TotalConflicts} conflicts " +
+                          $"({result.Remaining} remaining, {result.Skipped} skipped).";
+            Console.WriteLine(message);
+
+            return new Response<ResolveConflictsResultDto>(HttpStatusCode.OK, message, result);
+        }
+        catch (Exception ex)
+        {
+            return new Response<ResolveConflictsResultDto>(HttpStatusCode.InternalServerError,
+                new List<string> { ex.Message, ex.InnerException?.Message ?? "", ex.StackTrace ?? "" });
+        }
+    }
+
     private async Task DeleteExistingAssignmentsAsync(Domain.Entities.ReportPeriod period)
     {
         var existingAssignments = await _uow.Context.DriverAssignments
@@ -246,67 +398,85 @@ public class DriverAssignmentService
     {
         foreach (var trip in regularTrips)
         {
-            var tripStart = trip.GetStartDateTime();
-            var tripEnd = trip.GetEndDateTime();
+            Console.WriteLine($"\n--- Trip {trip.ConfNumber} ({trip.GetStartDateTime():MM-dd HH:mm}) ---");
 
-            Console.WriteLine($"\n--- Trip {trip.ConfNumber} ({tripStart:MM-dd HH:mm}) ---");
-
-            Domain.Entities.Driver? selectedDriver = null;
-            Domain.Entities.Vehicle? selectedVehicle = null;
-
-            // Get available vehicles (already filtered by availability in GetAvailableVehicles)
-            var availableVehicles = _vehicleFilters.GetAvailableVehicles(
-                trip, vehicles, newAssignments, vehicleWorkload);
-
-            Console.WriteLine($"Available vehicles: {availableVehicles.Count}");
-
-            foreach (var vehicle in availableVehicles)
-            {
-                _vehicleFilters.GetOrInitializeDriverSet(vehicle.Id, vehicleDriverCount, newAssignments);
-
-                // Get eligible drivers with all filters applied
-                var eligibleDrivers = GetEligibleDrivers(
-                    drivers, vehicle, trip, allTrips, newAssignments, 
-                    vehicleDriverCount, driverStates);
-
-                if (!eligibleDrivers.Any())
-                {
-                    LogFilterDiagnostics(drivers, vehicle, trip, allTrips, newAssignments, vehicleDriverCount);
-                    continue;
-                }
-
-                // Prioritize and select the best driver
-                selectedDriver = _prioritization
-                    .PrioritizeDrivers(eligibleDrivers, vehicle.Id, tripStart.Date, 
-                        vehicleDriverCount, driverWorkload, newAssignments)
-                    .FirstOrDefault();
-
-                if (selectedDriver != null)
-                {
-                    selectedVehicle = vehicle;
-
-                    vehicleWorkload[vehicle.Id]++;
-                    driverWorkload[selectedDriver.Id]++;
-                    vehicleDriverCount[vehicle.Id].Add(selectedDriver.Id);
-
-                    // Update state if using carryover
-                    if (driverStates != null && driverStates.ContainsKey(selectedDriver.Id))
-                    {
-                        _stateTracker.UpdateDriverStateAfterTrip(driverStates[selectedDriver.Id], trip);
-                    }
-
-                    var driverType = _prioritization.IsBackupDriver(selectedDriver) ? "🆘 BACKUP" : "✓";
-                    Console.WriteLine($"{driverType} Assigned: {selectedDriver.FullName} to {selectedVehicle.PlateNumber}");
-                    break;
-                }
-            }
+            var (selectedDriver, selectedVehicle, availableVehicleCount) = TryAssignTrip(
+                trip, trip.VehicleTypeId, allTrips, drivers, vehicles, newAssignments,
+                vehicleWorkload, driverWorkload, vehicleDriverCount, driverStates);
 
             // Create assignment
-            var assignment = CreateAssignment(trip, selectedDriver, selectedVehicle, availableVehicles.Count);
+            var assignment = CreateAssignment(trip, selectedDriver, selectedVehicle, availableVehicleCount);
             newAssignments.Add(assignment);
         }
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Find a vehicle of the given type and a driver for it, and record the pick in the workload trackers.
+    /// Does not add an assignment - the caller decides how to persist the result.
+    /// </summary>
+    private (Domain.Entities.Driver? Driver, Domain.Entities.Vehicle? Vehicle, int AvailableVehicleCount) TryAssignTrip(
+        Domain.Entities.Trip trip,
+        int vehicleTypeId,
+        List<Domain.Entities.Trip> allTrips,
+        List<Domain.Entities.Driver> drivers,
+        List<Domain.Entities.Vehicle> vehicles,
+        List<DriverAssignment> newAssignments,
+        Dictionary<int, int> vehicleWorkload,
+        Dictionary<int, int> driverWorkload,
+        Dictionary<int, HashSet<int>> vehicleDriverCount,
+        Dictionary<int, DriverStateTracker.DriverAvailabilityState>? driverStates)
+    {
+        var tripStart = trip.GetStartDateTime();
+
+        // Get available vehicles (already filtered by availability in GetAvailableVehicles)
+        var availableVehicles = _vehicleFilters.GetAvailableVehicles(
+            trip, vehicles, newAssignments, vehicleWorkload, vehicleTypeId);
+
+        Console.WriteLine($"Available vehicles: {availableVehicles.Count}");
+
+        foreach (var vehicle in availableVehicles)
+        {
+            _vehicleFilters.GetOrInitializeDriverSet(vehicle.Id, vehicleDriverCount, newAssignments);
+
+            // Get eligible drivers with all filters applied
+            var eligibleDrivers = GetEligibleDrivers(
+                drivers, vehicle, trip, allTrips, newAssignments, 
+                vehicleDriverCount, driverStates);
+
+            if (!eligibleDrivers.Any())
+            {
+                LogFilterDiagnostics(drivers, vehicle, trip, allTrips, newAssignments, vehicleDriverCount);
+                continue;
+            }
+
+            // Prioritize and select the best driver
+            var selectedDriver = _prioritization
+                .PrioritizeDrivers(eligibleDrivers, vehicle.Id, tripStart.Date, 
+                    vehicleDriverCount, driverWorkload, newAssignments)
+                .FirstOrDefault();
+
+            if (selectedDriver == null)
+                continue;
+
+            vehicleWorkload[vehicle.Id] = vehicleWorkload.GetValueOrDefault(vehicle.Id) + 1;
+            driverWorkload[selectedDriver.Id] = driverWorkload.GetValueOrDefault(selectedDriver.Id) + 1;
+            vehicleDriverCount[vehicle.Id].Add(selectedDriver.Id);
+
+            // Update state if using carryover
+            if (driverStates != null && driverStates.ContainsKey(selectedDriver.Id))
+            {
+                _stateTracker.UpdateDriverStateAfterTrip(driverStates[selectedDriver.Id], trip);
+            }
+
+            var driverType = _prioritization.IsBackupDriver(selectedDriver) ? "🆘 BACKUP" : "✓";
+            Console.WriteLine($"{driverType} Assigned: {selectedDriver.FullName} to {vehicle.PlateNumber}");
+
+            return (selectedDriver, vehicle, availableVehicles.Count);
+        }
+
+        return (null, null, availableVehicles.Count);
     }
 
     private List<Domain.Entities.Driver> GetEligibleDrivers(

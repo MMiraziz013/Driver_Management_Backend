@@ -13,6 +13,11 @@ public interface IDriverRepository
     
     Task<List<Driver>> GetActiveDriversWithDetailsAsync();
 
+    /// <summary>
+    /// Active drivers with details, untracked, leaving out assignments of the given period
+    /// </summary>
+    Task<List<Driver>> GetActiveDriversWithDetailsExcludingPeriodAsync(int periodId);
+
     Task<Driver?> UpdateDriverAsync(Driver driver);
 
     Task<bool> DeleteDriverAsync(int id);

@@ -17,6 +17,7 @@ public interface IDataContext
     public DbSet<Trip> Trips { get; set; }
     public DbSet<Vehicle> Vehicles { get; set; }
     public DbSet<VehicleType> VehicleTypes { get; set; }
+    public DbSet<VehicleTypeFallback> VehicleTypeFallbacks { get; set; }
     
     public DbSet<CachedLocation> CachedLocations { get; set; }
     

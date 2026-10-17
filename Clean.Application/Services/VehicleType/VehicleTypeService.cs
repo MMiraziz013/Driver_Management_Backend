@@ -121,4 +121,98 @@ public class VehicleTypeService : IVehicleTypeService
                 new List<string> { ex.Message });
         }
     }
+
+    public async Task<Response<List<VehicleTypeFallbackDto>>> GetFallbacksAsync(int id)
+    {
+        try
+        {
+            if (!await _uow.Context.VehicleTypes.AnyAsync(vt => vt.Id == id))
+            {
+                return new Response<List<VehicleTypeFallbackDto>>(HttpStatusCode.NotFound,
+                    new List<string> { $"Vehicle Type with ID {id} not found" });
+            }
+
+            return new Response<List<VehicleTypeFallbackDto>>(HttpStatusCode.OK, await LoadFallbacksAsync(id));
+        }
+        catch (Exception ex)
+        {
+            return new Response<List<VehicleTypeFallbackDto>>(HttpStatusCode.InternalServerError,
+                new List<string> { ex.Message });
+        }
+    }
+
+    public async Task<Response<List<VehicleTypeFallbackDto>>> UpdateFallbacksAsync(int id, UpdateVehicleTypeFallbacksDto dto)
+    {
+        try
+        {
+            if (!await _uow.Context.VehicleTypes.AnyAsync(vt => vt.Id == id))
+            {
+                return new Response<List<VehicleTypeFallbackDto>>(HttpStatusCode.NotFound,
+                    new List<string> { $"Vehicle Type with ID {id} not found" });
+            }
+
+            var fallbackIds = dto.FallbackVehicleTypeIds;
+
+            if (fallbackIds.Contains(id))
+            {
+                return new Response<List<VehicleTypeFallbackDto>>(HttpStatusCode.BadRequest,
+                    new List<string> { "A vehicle type cannot fall back to itself" });
+            }
+
+            if (fallbackIds.Distinct().Count() != fallbackIds.Count)
+            {
+                return new Response<List<VehicleTypeFallbackDto>>(HttpStatusCode.BadRequest,
+                    new List<string> { "Fallback vehicle types must not repeat" });
+            }
+
+            var existingIds = await _uow.Context.VehicleTypes
+                .Where(vt => fallbackIds.Contains(vt.Id))
+                .Select(vt => vt.Id)
+                .ToListAsync();
+
+            var missing = fallbackIds.Except(existingIds).ToList();
+            if (missing.Any())
+            {
+                return new Response<List<VehicleTypeFallbackDto>>(HttpStatusCode.BadRequest,
+                    new List<string> { $"Vehicle Type(s) not found: {string.Join(", ", missing)}" });
+            }
+
+            var current = await _uow.Context.VehicleTypeFallbacks
+                .Where(f => f.VehicleTypeId == id)
+                .ToListAsync();
+            _uow.Context.VehicleTypeFallbacks.RemoveRange(current);
+
+            await _uow.Context.VehicleTypeFallbacks.AddRangeAsync(fallbackIds.Select((fallbackId, index) =>
+                new Domain.Entities.VehicleTypeFallback
+                {
+                    VehicleTypeId = id,
+                    FallbackVehicleTypeId = fallbackId,
+                    Priority = index + 1
+                }));
+
+            await _uow.CompleteAsync();
+
+            return new Response<List<VehicleTypeFallbackDto>>(HttpStatusCode.OK, "Vehicle Type fallbacks updated.",
+                await LoadFallbacksAsync(id));
+        }
+        catch (Exception ex)
+        {
+            return new Response<List<VehicleTypeFallbackDto>>(HttpStatusCode.InternalServerError,
+                new List<string> { ex.Message });
+        }
+    }
+
+    private Task<List<VehicleTypeFallbackDto>> LoadFallbacksAsync(int id)
+    {
+        return _uow.Context.VehicleTypeFallbacks
+            .Where(f => f.VehicleTypeId == id)
+            .OrderBy(f => f.Priority)
+            .Select(f => new VehicleTypeFallbackDto
+            {
+                VehicleTypeId = f.FallbackVehicleTypeId,
+                Name = f.FallbackVehicleType.Name,
+                Priority = f.Priority
+            })
+            .ToListAsync();
+    }
 }

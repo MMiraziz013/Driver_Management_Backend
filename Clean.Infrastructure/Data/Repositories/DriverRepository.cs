@@ -77,6 +77,18 @@ public class DriverRepository : IDriverRepository
             .ToListAsync();
     }
 
+    public async Task<List<Driver>> GetActiveDriversWithDetailsExcludingPeriodAsync(int periodId)
+    {
+        return await _context.Drivers
+            .AsNoTracking()
+            .Where(d => d.IsActive)
+            .Include(d => d.Vacations)
+            .Include(d => d.OffDays)
+            .Include(d => d.Assignments.Where(a => a.Trip.ReportPeriodId != periodId))
+            .ThenInclude(a => a.Trip)
+            .ToListAsync();
+    }
+
     public async Task<Driver?> UpdateDriverAsync(Driver driver)
     {
         var toUpdate = await GetDriverByIdAsync(driver.Id);

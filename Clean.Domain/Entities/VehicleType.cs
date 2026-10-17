@@ -13,4 +13,6 @@ public class VehicleType
     // public DriverCategory RequiredCategory { get; set; }
 
     public List<Vehicle> Vehicles { get; set; } = [];
+
+    public List<VehicleTypeFallback> Fallbacks { get; set; } = [];
 }

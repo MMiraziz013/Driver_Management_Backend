@@ -132,12 +132,14 @@ public class VehicleFilters
     /// - Matching vehicle type
     /// - No time conflicts
     /// - Workload balancing
+    /// When vehicleTypeIdOverride is set, vehicles of that type are matched instead of the trip's own type.
     /// </summary>
     public List<Domain.Entities.Vehicle> GetAvailableVehicles(
         Domain.Entities.Trip trip,
         List<Domain.Entities.Vehicle> allVehicles,
         List<DriverAssignment> existingAssignments,
-        Dictionary<int, int> vehicleWorkload)
+        Dictionary<int, int> vehicleWorkload,
+        int? vehicleTypeIdOverride = null)
     {
         var tripStart = trip.GetStartDateTime();
         var tripEnd = trip.GetEndDateTime();
@@ -147,7 +149,7 @@ public class VehicleFilters
         var available = allVehicles
             .Where(v => v.IsActive)
             .Where(v => IsVehicleAvailableOnDate(v, tripDate)) // Check both ActiveFrom and UnavailablePeriods
-            .Where(v => MatchesRequiredType(v, trip))
+            .Where(v => MatchesRequiredType(v, trip, vehicleTypeIdOverride))
             .Where(v => !HasTimeConflict(v, tripStart, tripEnd, existingAssignments))
             .ToList();
 
@@ -161,13 +163,9 @@ public class VehicleFilters
     /// <summary>
     /// Check if vehicle matches the required type for the trip
     /// </summary>
-    public bool MatchesRequiredType(Domain.Entities.Vehicle vehicle, Domain.Entities.Trip trip)
+    public bool MatchesRequiredType(Domain.Entities.Vehicle vehicle, Domain.Entities.Trip trip, int? vehicleTypeIdOverride = null)
     {
-        // If trip doesn't specify a type, any vehicle works
-        if (trip.VehicleTypeId == null)
-            return true;
-
-        return vehicle.VehicleTypeId == trip.VehicleTypeId;
+        return vehicle.VehicleTypeId == (vehicleTypeIdOverride ?? trip.VehicleTypeId);
     }
 
     /// <summary>

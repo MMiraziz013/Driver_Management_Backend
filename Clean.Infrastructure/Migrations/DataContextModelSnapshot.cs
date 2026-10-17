@@ -1263,6 +1263,33 @@ namespace ClassLibrary1.Migrations
                     b.ToTable("vehicle_types", (string)null);
                 });
 
+            modelBuilder.Entity("Clean.Domain.Entities.VehicleTypeFallback", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("FallbackVehicleTypeId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("VehicleTypeId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FallbackVehicleTypeId");
+
+                    b.HasIndex("VehicleTypeId", "FallbackVehicleTypeId")
+                        .IsUnique();
+
+                    b.ToTable("vehicle_type_fallbacks", (string)null);
+                });
+
             modelBuilder.Entity("Clean.Domain.Entities.VehicleUnavailablePeriod", b =>
                 {
                     b.Property<int>("Id")
@@ -1631,6 +1658,25 @@ namespace ClassLibrary1.Migrations
                     b.Navigation("Vehicle");
                 });
 
+            modelBuilder.Entity("Clean.Domain.Entities.VehicleTypeFallback", b =>
+                {
+                    b.HasOne("Clean.Domain.Entities.VehicleType", "FallbackVehicleType")
+                        .WithMany()
+                        .HasForeignKey("FallbackVehicleTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Clean.Domain.Entities.VehicleType", "VehicleType")
+                        .WithMany("Fallbacks")
+                        .HasForeignKey("VehicleTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("FallbackVehicleType");
+
+                    b.Navigation("VehicleType");
+                });
+
             modelBuilder.Entity("Clean.Domain.Entities.VehicleUnavailablePeriod", b =>
                 {
                     b.HasOne("Clean.Domain.Entities.Vehicle", "Vehicle")
@@ -1747,6 +1793,8 @@ namespace ClassLibrary1.Migrations
 
             modelBuilder.Entity("Clean.Domain.Entities.VehicleType", b =>
                 {
+                    b.Navigation("Fallbacks");
+
                     b.Navigation("Vehicles");
                 });
 #pragma warning restore 612, 618
