@@ -68,6 +68,12 @@ public interface IGasService
     Task<Response<FuelCalculationResultDto>> PreviewFuelAllocationAsync(int periodId);
 
     /// <summary>
+    /// Redo automatic allocations of selected vehicles (or of every vehicle whose tank goes out of bounds)
+    /// with their current settings, without touching other vehicles. save = false is a dry run.
+    /// </summary>
+    Task<Response<FuelRecalculationResultDto>> RecalculateFuelForVehiclesAsync(int periodId, List<int>? vehicleIds, bool save);
+
+    /// <summary>
     /// Manually allocate fuel from a purchase to a vehicle
     /// </summary>
     Task<Response<string>> ManualFuelAllocationAsync(ManualFuelAllocationRequest request);

@@ -141,6 +141,30 @@ public class GasController : ControllerBase
     }
 
     /// <summary>
+    /// Dry run of a targeted recalculation. With no vehicleIds, lists the vehicles whose tank now goes
+    /// over capacity or below zero and what recalculating them would do.
+    /// </summary>
+    [HttpGet("allocate/{periodId}/recalculate/preview")]
+    [PermissionAuthorize(PermissionConstants.Gas.Manage)]
+    public async Task<IActionResult> PreviewFuelRecalculation(int periodId, [FromQuery] List<int>? vehicleIds)
+    {
+        var result = await _gasService.RecalculateFuelForVehiclesAsync(periodId, vehicleIds, save: false);
+        return StatusCode((int)result.StatusCode, result);
+    }
+
+    /// <summary>
+    /// Redo the automatic fuel allocations of the given vehicles (or of every out-of-bounds vehicle when
+    /// none are given) with their current settings. Other vehicles' allocations are not touched.
+    /// </summary>
+    [HttpPost("allocate/{periodId}/recalculate")]
+    [PermissionAuthorize(PermissionConstants.Gas.Manage)]
+    public async Task<IActionResult> RecalculateFuel(int periodId, [FromBody] RecalculateFuelRequest? request)
+    {
+        var result = await _gasService.RecalculateFuelForVehiclesAsync(periodId, request?.VehicleIds, save: true);
+        return StatusCode((int)result.StatusCode, result);
+    }
+
+    /// <summary>
     /// Manually allocate fuel from a purchase to a vehicle
     /// </summary>
     [HttpPost("allocate/manual")]

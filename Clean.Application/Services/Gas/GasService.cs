@@ -455,46 +455,18 @@ public class GasService : IGasService
                 var vehicleFuelTrackers = new Dictionary<int, VehicleFuelTracker>();
 
                 // Filter vehicles: must have fuel type, not electric, and be active during the period
-                var eligibleVehicles = vehicles.Where(v =>
-                        v.IsActive &&
-                        !string.IsNullOrEmpty(v.FuelType) &&
-                        !v.FuelType.Equals("Electric", StringComparison.OrdinalIgnoreCase) &&
-                        !v.FuelType.Equals("Электро", StringComparison.OrdinalIgnoreCase))
-                    .ToList();
+                var eligibleVehicles = GetFuelEligibleVehicles(vehicles);
 
                 Console.WriteLine($"Eligible vehicles for fuel allocation: {eligibleVehicles.Count} " +
                                   $"(filtered by IsActive, FuelType, and ActiveFrom date)");
 
                 foreach (var vehicle in eligibleVehicles)
                 {
-                    var vehicleTrips = period.Trips
-                        .Where(t => t.Assignments.Any(a => a.VehicleId == vehicle.Id && !a.HasConflict))
-                        .Where(t => IsVehicleAvailableOnDate(vehicle, t.PickUpDate))
-                        .Where(t=> !t.IsSamarkandTrip) // excluding samarkand trips
-                        .ToList();
-                    
-                    // excluding cash trips
-                    vehicleTrips = vehicleTrips.ExcludeCashTrips().ToList();
+                    var tracker = BuildFuelTracker(vehicle, period);
+                    vehicleFuelTrackers[vehicle.Id] = tracker;
 
-                    double totalDistance = vehicleTrips.Sum(t => t.DistanceKm ?? 0);
-                    double totalFuelNeeded = vehicle.CalculateFuelConsumption(vehicleTrips);
-
-                    vehicleFuelTrackers[vehicle.Id] = new VehicleFuelTracker
-                    {
-                        Vehicle = vehicle,
-                        TotalDistanceKm = totalDistance,
-                        TotalFuelNeeded = totalFuelNeeded,
-                        CurrentFuelLevel = vehicle.InitialFuelLevel, // Start with initial level
-                        TripsByDate = vehicleTrips
-                            .GroupBy(t => t.PickUpDate.Date)
-                            .ToDictionary(
-                                g => g.Key,
-                                g => g.OrderBy(t => t.GarageOutTime).ToList()
-                            )
-                    };
-
-                    Console.WriteLine($"  Vehicle {vehicle.PlateNumber}: {totalDistance:F1}km planned, " +
-                                      $"needs {totalFuelNeeded:F1}L ({vehicle.FuelType}), " +
+                    Console.WriteLine($"  Vehicle {vehicle.PlateNumber}: {tracker.TotalDistanceKm:F1}km planned, " +
+                                      $"needs {tracker.TotalFuelNeeded:F1}L ({vehicle.FuelType}), " +
                                       $"tank: {vehicle.FuelTankCapacity}L, initial: {vehicle.InitialFuelLevel:F1}L");
                 }
 
@@ -561,6 +533,219 @@ public class GasService : IGasService
                     new List<string> { ex.Message, ex.StackTrace ?? "" });
             }
         }
+
+    /// <summary>
+    /// Redo the automatic fuel allocations of a few vehicles with their current settings, leaving every
+    /// other vehicle's allocations as they are. Selected vehicles only get liters a purchase still has free
+    /// (their own released fuel plus anything unallocated); what no longer fits stays unallocated.
+    /// Manual allocations of a selected vehicle are kept and counted in its tank.
+    /// </summary>
+    public async Task<Response<FuelRecalculationResultDto>> RecalculateFuelForVehiclesAsync(
+        int periodId, List<int>? vehicleIds, bool save)
+    {
+        try
+        {
+            var period = await _uow.ReportPeriods.GetWithAssignmentsAsync(periodId);
+            if (period == null)
+                return new Response<FuelRecalculationResultDto>(HttpStatusCode.NotFound, "Period not found");
+
+            if (period.IsFuelFinalized || period.IsFinalized)
+            {
+                return new Response<FuelRecalculationResultDto>(HttpStatusCode.BadRequest,
+                    "Fuel is finalized for this period. Revert fuel finalization first.");
+            }
+
+            var allocations = await _uow.FuelAllocations.GetByPeriodIdAsync(periodId);
+            if (!allocations.Any())
+            {
+                return new Response<FuelRecalculationResultDto>(HttpStatusCode.BadRequest,
+                    "No fuel allocations found for this period. Run fuel allocation first.");
+            }
+
+            await LoadUnavailablePeriodsAsync(period.StartDate, period.EndDate);
+
+            var vehicles = GetFuelEligibleVehicles((await _uow.Vehicles.GetAllAsync())
+                .Where(v => IsVehicleAvailableInPeriod(v, period.StartDate, period.EndDate)));
+
+            var trackers = vehicles.ToDictionary(v => v.Id, v => BuildFuelTracker(v, period));
+            var allocationsByVehicle = allocations
+                .GroupBy(a => a.VehicleId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            List<VehicleFuelAllocation> AllocationsOf(int vehicleId) =>
+                allocationsByVehicle.GetValueOrDefault(vehicleId) ?? [];
+
+            var violationsBefore = trackers.ToDictionary(
+                kv => kv.Key,
+                kv => FuelLevelSimulator.FindViolations(kv.Value.Vehicle, kv.Value.TripsByDate, AllocationsOf(kv.Key)));
+
+            // 1. Selection: the picked vehicles, or every vehicle whose tank goes out of bounds
+            var selectedBecause = new Dictionary<int, string>();
+
+            if (vehicleIds != null && vehicleIds.Any())
+            {
+                var notEligible = vehicleIds.Where(id => !trackers.ContainsKey(id)).Distinct().ToList();
+                if (notEligible.Any())
+                {
+                    return new Response<FuelRecalculationResultDto>(HttpStatusCode.BadRequest,
+                        new List<string> { $"Vehicle(s) not part of fuel allocation in this period: {string.Join(", ", notEligible)}" });
+                }
+
+                foreach (var id in vehicleIds.Distinct())
+                    selectedBecause[id] = "Picked";
+            }
+            else
+            {
+                foreach (var (id, violations) in violationsBefore.Where(kv => kv.Value.Any()))
+                    selectedBecause[id] = violations.First().Kind.ToString();
+            }
+
+            var result = new FuelRecalculationResultDto { ReportPeriodId = periodId, Saved = save };
+
+            if (!selectedBecause.Any())
+            {
+                return new Response<FuelRecalculationResultDto>(HttpStatusCode.OK,
+                    "No vehicles need recalculation.", result);
+            }
+
+            // 2. Release the selected vehicles' automatic allocations back to their purchases
+            var purchases = (await _uow.GasPurchases.GetByPeriodIdAsync(periodId)).ToList();
+            var purchasesById = purchases.ToDictionary(p => p.Id);
+
+            var selectedTrackers = new Dictionary<int, VehicleFuelTracker>();
+
+            foreach (var vehicleId in selectedBecause.Keys)
+            {
+                var tracker = trackers[vehicleId];
+                var vehicleAllocations = AllocationsOf(vehicleId);
+                var released = vehicleAllocations.Where(a => a.Reason != FuelAllocationReason.ManualAllocation).ToList();
+                var kept = vehicleAllocations.Except(released).ToList();
+
+                result.Vehicles.Add(new VehicleFuelRecalculationDto
+                {
+                    VehicleId = vehicleId,
+                    PlateNumber = tracker.Vehicle.PlateNumber,
+                    SelectedBecause = selectedBecause[vehicleId],
+                    LitersBefore = Math.Round(vehicleAllocations.Sum(a => a.LitersAllocated), 2),
+                    CostBefore = vehicleAllocations.Sum(a => a.AllocationCostUzs),
+                    EndingLevelBefore = Math.Round(FuelLevelSimulator.EndingLevel(tracker.Vehicle, tracker.TripsByDate, vehicleAllocations), 2),
+                    ViolationsBefore = ToDtos(violationsBefore[vehicleId])
+                });
+
+                foreach (var allocation in released)
+                {
+                    if (purchasesById.TryGetValue(allocation.GasPurchaseId, out var purchase))
+                        purchase.AllocatedLiters = Math.Max(0, purchase.AllocatedLiters - allocation.LitersAllocated);
+
+                    result.LitersReleased += allocation.LitersAllocated;
+                }
+
+                _uow.FuelAllocations.RemoveRange(released);
+
+                tracker.FixedAdditionsByDate = kept
+                    .GroupBy(a => a.AllocationDate.Date)
+                    .ToDictionary(g => g.Key, g => g.Sum(a => a.LitersAllocated));
+
+                selectedTrackers[vehicleId] = tracker;
+                allocationsByVehicle[vehicleId] = kept;
+            }
+
+            // 3. Allocate the free liters to the selected vehicles only
+            var calculation = new FuelCalculationResultDto { ReportPeriodId = periodId, CalculatedAt = DateTime.UtcNow };
+            var newAllocations = new DailyFuelAllocator().Allocate(purchases, selectedTrackers, periodId, calculation);
+
+            foreach (var allocation in newAllocations)
+            {
+                allocation.Notes = $"Recalculated: {allocation.Notes}";
+                allocationsByVehicle[allocation.VehicleId].Add(allocation);
+            }
+
+            result.LitersReleased = Math.Round(result.LitersReleased, 2);
+            result.LitersReallocated = Math.Round(newAllocations.Sum(a => a.LitersAllocated), 2);
+            result.LitersLeftUnallocated = Math.Round(purchases.Sum(p => Math.Max(0, p.LitersAmount - p.AllocatedLiters)), 2);
+            result.Warnings.AddRange(calculation.Warnings);
+
+            foreach (var item in result.Vehicles)
+            {
+                var tracker = trackers[item.VehicleId];
+                var after = AllocationsOf(item.VehicleId);
+
+                item.LitersAfter = Math.Round(after.Sum(a => a.LitersAllocated), 2);
+                item.CostAfter = after.Sum(a => a.AllocationCostUzs);
+                item.EndingLevelAfter = Math.Round(FuelLevelSimulator.EndingLevel(tracker.Vehicle, tracker.TripsByDate, after), 2);
+                item.ViolationsAfter = ToDtos(FuelLevelSimulator.FindViolations(tracker.Vehicle, tracker.TripsByDate, after));
+            }
+
+            if (save)
+            {
+                if (newAllocations.Any())
+                    await _uow.FuelAllocations.AddRangeAsync(newAllocations);
+
+                await _uow.CompleteAsync();
+            }
+
+            var message = $"{(save ? "Recalculated" : "Preview:")} {result.Vehicles.Count} vehicle(s): " +
+                          $"{result.LitersReleased:F2}L released, {result.LitersReallocated:F2}L reallocated" +
+                          (result.LitersLeftUnallocated > DailyFuelAllocator.ALLOCATION_EPSILON
+                              ? $", {result.LitersLeftUnallocated:F2}L left unallocated."
+                              : ".");
+
+            return new Response<FuelRecalculationResultDto>(HttpStatusCode.OK, message, result);
+        }
+        catch (Exception ex)
+        {
+            return new Response<FuelRecalculationResultDto>(HttpStatusCode.InternalServerError,
+                new List<string> { ex.Message, ex.StackTrace ?? "" });
+        }
+    }
+
+    private static List<FuelViolationDto> ToDtos(IEnumerable<FuelViolation> violations)
+    {
+        return violations.Select(v => new FuelViolationDto
+        {
+            Date = v.Date,
+            Kind = v.Kind.ToString(),
+            Level = v.Level
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Vehicles that take part in fuel allocation: active, with a fuel type, not electric
+    /// </summary>
+    private static List<Domain.Entities.Vehicle> GetFuelEligibleVehicles(IEnumerable<Domain.Entities.Vehicle> vehicles)
+    {
+        return vehicles.Where(v =>
+                v.IsActive &&
+                !string.IsNullOrEmpty(v.FuelType) &&
+                !v.FuelType.Equals("Electric", StringComparison.OrdinalIgnoreCase) &&
+                !v.FuelType.Equals("Электро", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Fuel tracker for a vehicle starting at its initial level, with the trips fuel allocation counts:
+    /// assigned to it, on days it is available, excluding Samarkand and cash trips
+    /// </summary>
+    private VehicleFuelTracker BuildFuelTracker(Domain.Entities.Vehicle vehicle, Domain.Entities.ReportPeriod period)
+    {
+        var vehicleTrips = period.Trips
+            .Where(t => t.Assignments.Any(a => a.VehicleId == vehicle.Id && !a.HasConflict))
+            .Where(t => IsVehicleAvailableOnDate(vehicle, t.PickUpDate))
+            .Where(t => !t.IsSamarkandTrip)
+            .ExcludeCashTrips()
+            .ToList();
+
+        return new VehicleFuelTracker
+        {
+            Vehicle = vehicle,
+            TotalDistanceKm = vehicleTrips.Sum(t => t.DistanceKm ?? 0),
+            TotalFuelNeeded = vehicle.CalculateFuelConsumption(vehicleTrips),
+            CurrentFuelLevel = vehicle.InitialFuelLevel,
+            TripsByDate = vehicleTrips
+                .GroupBy(t => t.PickUpDate.Date)
+                .ToDictionary(g => g.Key, g => g.OrderBy(t => t.GarageOutTime).ToList())
+        };
+    }
 
     /// <summary>
     /// Check if fuel types are compatible:

@@ -16,6 +16,12 @@ public class VehicleFuelTracker
     public double TotalFuelAllocated { get; set; }    // Running total of fuel received
     public Dictionary<DateTime, List<Domain.Entities.Trip>> TripsByDate { get; set; } = new();
 
+    /// <summary>
+    /// Fuel already in the tank from allocations that are kept as they are (e.g. manual ones), by day.
+    /// Added after that day's trips, before its purchases; no new allocations are created for it.
+    /// </summary>
+    public Dictionary<DateTime, double> FixedAdditionsByDate { get; set; } = new();
+
     public double RoomInTank => Math.Max(0, Vehicle.FuelTankCapacity - CurrentFuelLevel);
 }
 
@@ -59,7 +65,7 @@ public class DailyFuelAllocator
 
         // Get all unique dates from trips AND purchases
         var tripDates = vehicleTrackers.Values
-            .SelectMany(v => v.TripsByDate.Keys)
+            .SelectMany(v => v.TripsByDate.Keys.Concat(v.FixedAdditionsByDate.Keys))
             .ToHashSet();
 
         var purchaseDates = purchases
@@ -102,6 +108,12 @@ public class DailyFuelAllocator
                         Console.WriteLine($"  🚗 {tracker.Vehicle.PlateNumber}: Trip {trip.DistanceKm ?? 0:F1}km, " +
                                           $"used {fuelUsed:F1}L, tank now: {tracker.CurrentFuelLevel:F1}L");
                     }
+                }
+
+                if (tracker.FixedAdditionsByDate.TryGetValue(date, out var fixedLiters))
+                {
+                    tracker.CurrentFuelLevel += fixedLiters;
+                    tracker.TotalFuelAllocated += fixedLiters;
                 }
             }
 
