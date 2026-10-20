@@ -5,16 +5,14 @@ namespace Clean.Application.Services.Report.AssignmentEngine;
 /// </summary>
 public static class TripReschedule
 {
-    public const int MaxShiftDays = 3;
-
     /// <summary>
-    /// Closest days first (-1, +1, -2, +2, ...), earlier day first on a tie, all inside the period.
+    /// Every other day of the period, closest first (-1, +1, -2, +2, ...), earlier day first on a tie.
     /// The original day is never included.
     /// </summary>
-    public static List<DateTime> GetCandidateDates(DateTime originalDate, DateTime periodStart, DateTime periodEnd,
-        int maxShiftDays = MaxShiftDays)
+    public static List<DateTime> GetCandidateDates(DateTime originalDate, DateTime periodStart, DateTime periodEnd)
     {
         var candidates = new List<DateTime>();
+        var maxShiftDays = (periodEnd.Date - periodStart.Date).Days;
 
         for (var shift = 1; shift <= maxShiftDays; shift++)
         {

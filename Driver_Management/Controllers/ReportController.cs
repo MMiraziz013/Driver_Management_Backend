@@ -56,7 +56,7 @@ public class ReportController : Controller
     }
 
     /// <summary>
-    /// Move conflicting trips (except Field Trips) to the closest day within ±3 days that has a free driver and vehicle.
+    /// Move conflicting trips (except Field Trips) to the closest day in the period that has a free driver and vehicle.
     /// </summary>
     [HttpPost("reschedule-conflicts/{periodId}")]
     [PermissionAuthorize(PermissionConstants.ReportPeriods.Manage)]

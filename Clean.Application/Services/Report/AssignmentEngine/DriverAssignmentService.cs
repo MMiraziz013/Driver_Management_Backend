@@ -246,7 +246,7 @@ public class DriverAssignmentService
     }
 
     /// <summary>
-    /// Move conflicting trips to the closest day (within ±3 days, inside the period) where a vehicle of
+    /// Move conflicting trips to the closest day in the period where a vehicle of
     /// their own type - or else a fallback type - and a driver are free. Field Trips never move and
     /// successful assignments are kept as they are.
     /// </summary>
@@ -341,7 +341,7 @@ public class DriverAssignmentService
                 {
                     trip.PickUpDate = originalDate;
                     item.Status = "Unresolved";
-                    item.Reason = $"No driver/vehicle available within ±{TripReschedule.MaxShiftDays} days";
+                    item.Reason = "No driver/vehicle available on any day of the period";
                     result.Remaining++;
                 }
             }

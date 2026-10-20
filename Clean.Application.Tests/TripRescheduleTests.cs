@@ -15,14 +15,26 @@ public class TripRescheduleTests
     {
         var dates = TripReschedule.GetCandidateDates(Day(8), PeriodStart, PeriodEnd);
 
-        Assert.Equal([Day(7), Day(9), Day(6), Day(10), Day(5), Day(11)], dates);
+        Assert.Equal([Day(7), Day(9), Day(6), Day(10), Day(5), Day(11)], dates.Take(6));
+    }
+
+    [Fact]
+    public void Candidates_CoverEveryOtherDayOfThePeriod()
+    {
+        var dates = TripReschedule.GetCandidateDates(Day(2), PeriodStart, PeriodEnd);
+
+        // Day 1 is the only earlier day, then the rest of the period in order up to the last day
+        Assert.Equal(14, dates.Count);
+        Assert.Equal([Day(1), Day(3), Day(4)], dates.Take(3));
+        Assert.Equal(Day(15), dates.Last());
     }
 
     [Fact]
     public void Candidates_StayInsidePeriod()
     {
-        Assert.Equal([Day(1), Day(3), Day(4), Day(5)], TripReschedule.GetCandidateDates(Day(2), PeriodStart, PeriodEnd));
-        Assert.Equal([Day(14), Day(13), Day(12)], TripReschedule.GetCandidateDates(Day(15), PeriodStart, PeriodEnd));
+        Assert.All(TripReschedule.GetCandidateDates(Day(15), PeriodStart, PeriodEnd),
+            d => Assert.InRange(d, PeriodStart, PeriodEnd));
+        Assert.Equal([Day(14), Day(13), Day(12)], TripReschedule.GetCandidateDates(Day(15), PeriodStart, PeriodEnd).Take(3));
     }
 
     [Fact]
