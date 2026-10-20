@@ -99,6 +99,11 @@ public class ReportService : IReportService
         return _assignmentService.ResolveConflictsAsync(periodId);
     }
 
+    public Task<Response<ResolveConflictsResultDto>> RescheduleConflictsAsync(int periodId)
+    {
+        return _assignmentService.RescheduleConflictsAsync(periodId);
+    }
+
     /// <summary>
     /// Run auto-assignment with carryover from previous period
     /// </summary>

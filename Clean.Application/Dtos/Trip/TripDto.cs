@@ -5,6 +5,7 @@ public class TripDto
     public int Id { get; set; }
     public string ConfNumber { get; set; } = string.Empty;
     public DateTime PickUpDate { get; set; }
+    public DateTime? OriginalPickUpDate { get; set; }
     public string GarageOutTime { get; set; } = string.Empty;
     public string GarageInTime { get; set; } = string.Empty;
     public string CompanyName { get; set; } = string.Empty;

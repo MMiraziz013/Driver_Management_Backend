@@ -7,6 +7,11 @@ public class Trip
     public int Id { get; set; }
     public string? ConfNumber { get; set; } = string.Empty;
     public DateTime PickUpDate { get; set; }
+
+    /// <summary>
+    /// Uploaded pick-up date, set when the trip is rescheduled to another day. Null if never moved.
+    /// </summary>
+    public DateTime? OriginalPickUpDate { get; set; }
     public TimeSpan GarageOutTime { get; set; }
     public TimeSpan GarageInTime { get; set; }
 

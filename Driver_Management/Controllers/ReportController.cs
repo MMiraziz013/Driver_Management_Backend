@@ -55,6 +55,17 @@ public class ReportController : Controller
         return StatusCode(response.StatusCode, response);
     }
 
+    /// <summary>
+    /// Move conflicting trips (except Field Trips) to the closest day within ±3 days that has a free driver and vehicle.
+    /// </summary>
+    [HttpPost("reschedule-conflicts/{periodId}")]
+    [PermissionAuthorize(PermissionConstants.ReportPeriods.Manage)]
+    public async Task<IActionResult> RescheduleConflictsAsync(int periodId)
+    {
+        var response = await _reportService.RescheduleConflictsAsync(periodId);
+        return StatusCode(response.StatusCode, response);
+    }
+
     [HttpGet]
     [PermissionAuthorize(PermissionConstants.ReportPeriods.View)]
     public async Task<IActionResult> GetAllPeriodsAsync()

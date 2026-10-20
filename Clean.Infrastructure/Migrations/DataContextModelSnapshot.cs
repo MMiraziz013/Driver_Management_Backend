@@ -962,6 +962,9 @@ namespace ClassLibrary1.Migrations
                     b.Property<bool>("IsSamarkandTrip")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTime?>("OriginalPickUpDate")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime>("PickUpDate")
                         .HasColumnType("timestamp with time zone");
 

@@ -11,6 +11,7 @@ public interface IReportService
     Task<Response<string>> UploadReportAsync(IFormFile file, int periodId);
     Task<Response<string>> RunAutoAssignmentAsync(int periodId);
     Task<Response<ResolveConflictsResultDto>> ResolveConflictsAsync(int periodId);
+    Task<Response<ResolveConflictsResultDto>> RescheduleConflictsAsync(int periodId);
     Task<byte[]> ExportReportAsync(int periodId); // Binary data for the file
     
     Task<Response<PeriodFinalizationResultDto>> PreviewPeriodFinalizationAsync(int periodId);

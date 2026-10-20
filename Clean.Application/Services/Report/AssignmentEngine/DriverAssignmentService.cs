@@ -145,55 +145,12 @@ public class DriverAssignmentService
     {
         try
         {
-            var period = await _uow.ReportPeriods.GetWithAssignmentsAsync(periodId);
-            if (period == null)
-                return new Response<ResolveConflictsResultDto>(HttpStatusCode.NotFound, "Period not found.");
+            var (ctx, error) = await LoadConflictContextAsync(periodId);
+            if (ctx == null)
+                return error!;
 
-            if (period.IsFinalized || period.IsAssignmentFinalized)
-            {
-                return new Response<ResolveConflictsResultDto>(HttpStatusCode.BadRequest,
-                    "Cannot resolve conflicts on a finalized period. Revert finalization first.");
-            }
-
-            var assignments = period.Trips.SelectMany(t => t.Assignments).ToList();
-            if (!assignments.Any())
-            {
-                return new Response<ResolveConflictsResultDto>(HttpStatusCode.BadRequest,
-                    "No assignments found for this period. Run assignment first.");
-            }
-
-            await _vehicleFilters.LoadUnavailablePeriodsForRangeAsync(period.StartDate, period.EndDate);
-
-            // This period's assignments live in the pending list, so drivers must not carry them as well
-            var drivers = await _uow.Drivers.GetActiveDriversWithDetailsExcludingPeriodAsync(periodId);
-            var vehicles = (await _uow.Vehicles.GetAllAsync())
-                .Where(v => v.IsActive)
-                .Where(v => _vehicleFilters.IsVehicleAvailableInPeriod(v, period.StartDate, period.EndDate))
-                .ToList();
-
-            var vehicleTypes = await _uow.Context.VehicleTypes.ToDictionaryAsync(vt => vt.Id);
-            var fallbacks = await _uow.Context.VehicleTypeFallbacks.AsNoTracking().ToListAsync();
-
-            var allTrips = period.Trips.ExcludeCashTrips().ToList();
-
-            // Rebuild the trackers from the assignments that are kept
-            var vehicleWorkload = vehicles.ToDictionary(v => v.Id, v => 0);
-            var driverWorkload = drivers.ToDictionary(d => d.Id, d => 0);
-            var vehicleDriverCount = new Dictionary<int, HashSet<int>>();
-
-            foreach (var a in assignments.Where(a => !a.HasConflict))
-            {
-                if (a.VehicleId.HasValue)
-                    vehicleWorkload[a.VehicleId.Value] = vehicleWorkload.GetValueOrDefault(a.VehicleId.Value) + 1;
-                if (a.DriverId.HasValue)
-                    driverWorkload[a.DriverId.Value] = driverWorkload.GetValueOrDefault(a.DriverId.Value) + 1;
-            }
-
-            var conflicts = assignments
-                .Where(a => a.HasConflict)
-                .OrderBy(a => a.Trip.PickUpDate)
-                .ThenBy(a => a.Trip.GarageOutTime)
-                .ToList();
+            var (_, assignments, drivers, vehicles, vehicleTypes, fallbacks, allTrips,
+                vehicleWorkload, driverWorkload, vehicleDriverCount, conflicts) = ctx;
 
             var result = new ResolveConflictsResultDto { TotalConflicts = conflicts.Count };
 
@@ -286,6 +243,197 @@ public class DriverAssignmentService
             return new Response<ResolveConflictsResultDto>(HttpStatusCode.InternalServerError,
                 new List<string> { ex.Message, ex.InnerException?.Message ?? "", ex.StackTrace ?? "" });
         }
+    }
+
+    /// <summary>
+    /// Move conflicting trips to the closest day (within ±3 days, inside the period) where a vehicle of
+    /// their own type - or else a fallback type - and a driver are free. Field Trips never move and
+    /// successful assignments are kept as they are.
+    /// </summary>
+    public async Task<Response<ResolveConflictsResultDto>> RescheduleConflictsAsync(int periodId)
+    {
+        try
+        {
+            var (ctx, error) = await LoadConflictContextAsync(periodId);
+            if (ctx == null)
+                return error!;
+
+            var (period, assignments, drivers, vehicles, vehicleTypes, fallbacks, allTrips,
+                vehicleWorkload, driverWorkload, vehicleDriverCount, conflicts) = ctx;
+
+            var result = new ResolveConflictsResultDto { TotalConflicts = conflicts.Count };
+
+            Console.WriteLine($"\n=== RESCHEDULING {conflicts.Count} CONFLICTS ===");
+
+            foreach (var conflict in conflicts)
+            {
+                var trip = conflict.Trip;
+                var originalDate = trip.PickUpDate;
+                var originalTypeName = vehicleTypes.GetValueOrDefault(trip.VehicleTypeId)?.Name ?? "";
+
+                var item = new ResolvedConflictItemDto
+                {
+                    TripId = trip.Id,
+                    ConfNumber = trip.ConfNumber,
+                    PickUpDate = originalDate,
+                    OriginalVehicleType = originalTypeName
+                };
+                result.Items.Add(item);
+
+                if (trip.ServiceType?.Name.Equals("Field Trip", StringComparison.OrdinalIgnoreCase) ?? false)
+                {
+                    item.Status = "Skipped";
+                    item.Reason = "Field trips keep their date";
+                    result.Skipped++;
+                    continue;
+                }
+
+                var dates = TripReschedule.GetCandidateDates(originalDate, period.StartDate, period.EndDate);
+                var typeIds = new List<int> { trip.VehicleTypeId };
+                typeIds.AddRange(VehicleTypeFallbacks.GetCandidates(trip.VehicleTypeId, fallbacks));
+
+                Console.WriteLine($"\n--- Trip {trip.ConfNumber} ({trip.GetStartDateTime():MM-dd HH:mm}), {originalTypeName} ---");
+
+                foreach (var date in dates)
+                {
+                    // Every driver and vehicle filter reads the trip's own date, so try the trip on the new day
+                    trip.PickUpDate = DateTime.SpecifyKind(date, originalDate.Kind);
+
+                    foreach (var typeId in typeIds)
+                    {
+                        var (driver, vehicle, _) = TryAssignTrip(
+                            trip, typeId, allTrips, drivers, vehicles, assignments,
+                            vehicleWorkload, driverWorkload, vehicleDriverCount, null);
+
+                        if (driver == null || vehicle == null)
+                            continue;
+
+                        var newType = vehicleTypes[typeId];
+                        var notes = $"Rescheduled: {originalDate:dd.MM} → {date:dd.MM}";
+                        if (typeId != trip.VehicleTypeId)
+                            notes += $"; vehicle type {originalTypeName} → {newType.Name}";
+
+                        // Only scalar keys are set: drivers are untracked and must not be attached
+                        conflict.DriverId = driver.Id;
+                        conflict.VehicleId = vehicle.Id;
+                        conflict.HasConflict = false;
+                        conflict.AssignmentType = AssignmentType.Auto;
+                        conflict.Notes = notes;
+
+                        trip.OriginalPickUpDate ??= originalDate;
+                        trip.VehicleTypeId = newType.Id;
+                        trip.VehicleType = newType;
+
+                        item.Status = "Resolved";
+                        item.NewPickUpDate = trip.PickUpDate;
+                        item.NewVehicleType = typeId != typeIds[0] ? newType.Name : null;
+                        item.DriverName = driver.FullName;
+                        item.VehiclePlate = vehicle.PlateNumber;
+                        result.Resolved++;
+                        break;
+                    }
+
+                    if (item.Status == "Resolved")
+                        break;
+                }
+
+                if (item.Status != "Resolved")
+                {
+                    trip.PickUpDate = originalDate;
+                    item.Status = "Unresolved";
+                    item.Reason = $"No driver/vehicle available within ±{TripReschedule.MaxShiftDays} days";
+                    result.Remaining++;
+                }
+            }
+
+            await _uow.CompleteAsync();
+
+            var message = $"Rescheduled {result.Resolved} of {result.TotalConflicts} conflicts " +
+                          $"({result.Remaining} remaining, {result.Skipped} skipped).";
+            if (result.Resolved > 0)
+                message += " Re-run fuel allocation if it was already calculated for this period.";
+            Console.WriteLine(message);
+
+            return new Response<ResolveConflictsResultDto>(HttpStatusCode.OK, message, result);
+        }
+        catch (Exception ex)
+        {
+            return new Response<ResolveConflictsResultDto>(HttpStatusCode.InternalServerError,
+                new List<string> { ex.Message, ex.InnerException?.Message ?? "", ex.StackTrace ?? "" });
+        }
+    }
+
+    /// <summary>
+    /// Everything Resolve/Reschedule Conflicts need: the period's assignments as the pending list,
+    /// trackers rebuilt from the kept ones, and the conflicts to work on.
+    /// </summary>
+    private sealed record ConflictContext(
+        Domain.Entities.ReportPeriod Period,
+        List<DriverAssignment> Assignments,
+        List<Domain.Entities.Driver> Drivers,
+        List<Domain.Entities.Vehicle> Vehicles,
+        Dictionary<int, Domain.Entities.VehicleType> VehicleTypes,
+        List<VehicleTypeFallback> Fallbacks,
+        List<Domain.Entities.Trip> AllTrips,
+        Dictionary<int, int> VehicleWorkload,
+        Dictionary<int, int> DriverWorkload,
+        Dictionary<int, HashSet<int>> VehicleDriverCount,
+        List<DriverAssignment> Conflicts);
+
+    private async Task<(ConflictContext? Context, Response<ResolveConflictsResultDto>? Error)> LoadConflictContextAsync(int periodId)
+    {
+        var period = await _uow.ReportPeriods.GetWithAssignmentsAsync(periodId);
+        if (period == null)
+            return (null, new Response<ResolveConflictsResultDto>(HttpStatusCode.NotFound, "Period not found."));
+
+        if (period.IsFinalized || period.IsAssignmentFinalized)
+        {
+            return (null, new Response<ResolveConflictsResultDto>(HttpStatusCode.BadRequest,
+                "Cannot change assignments on a finalized period. Revert finalization first."));
+        }
+
+        var assignments = period.Trips.SelectMany(t => t.Assignments).ToList();
+        if (!assignments.Any())
+        {
+            return (null, new Response<ResolveConflictsResultDto>(HttpStatusCode.BadRequest,
+                "No assignments found for this period. Run assignment first."));
+        }
+
+        await _vehicleFilters.LoadUnavailablePeriodsForRangeAsync(period.StartDate, period.EndDate);
+
+        // This period's assignments live in the pending list, so drivers must not carry them as well
+        var drivers = await _uow.Drivers.GetActiveDriversWithDetailsExcludingPeriodAsync(periodId);
+        var vehicles = (await _uow.Vehicles.GetAllAsync())
+            .Where(v => v.IsActive)
+            .Where(v => _vehicleFilters.IsVehicleAvailableInPeriod(v, period.StartDate, period.EndDate))
+            .ToList();
+
+        var vehicleTypes = await _uow.Context.VehicleTypes.ToDictionaryAsync(vt => vt.Id);
+        var fallbacks = await _uow.Context.VehicleTypeFallbacks.AsNoTracking().ToListAsync();
+
+        var allTrips = period.Trips.ExcludeCashTrips().ToList();
+
+        // Rebuild the trackers from the assignments that are kept
+        var vehicleWorkload = vehicles.ToDictionary(v => v.Id, v => 0);
+        var driverWorkload = drivers.ToDictionary(d => d.Id, d => 0);
+        var vehicleDriverCount = new Dictionary<int, HashSet<int>>();
+
+        foreach (var a in assignments.Where(a => !a.HasConflict))
+        {
+            if (a.VehicleId.HasValue)
+                vehicleWorkload[a.VehicleId.Value] = vehicleWorkload.GetValueOrDefault(a.VehicleId.Value) + 1;
+            if (a.DriverId.HasValue)
+                driverWorkload[a.DriverId.Value] = driverWorkload.GetValueOrDefault(a.DriverId.Value) + 1;
+        }
+
+        var conflicts = assignments
+            .Where(a => a.HasConflict)
+            .OrderBy(a => a.Trip.PickUpDate)
+            .ThenBy(a => a.Trip.GarageOutTime)
+            .ToList();
+
+        return (new ConflictContext(period, assignments, drivers, vehicles, vehicleTypes, fallbacks, allTrips,
+            vehicleWorkload, driverWorkload, vehicleDriverCount, conflicts), null);
     }
 
     private async Task DeleteExistingAssignmentsAsync(Domain.Entities.ReportPeriod period)

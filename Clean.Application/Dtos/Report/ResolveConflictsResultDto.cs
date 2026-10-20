@@ -14,6 +14,11 @@ public class ResolvedConflictItemDto
     public int TripId { get; set; }
     public string? ConfNumber { get; set; }
     public DateTime PickUpDate { get; set; }
+
+    /// <summary>
+    /// Day the trip was moved to; only set by Reschedule Conflicts
+    /// </summary>
+    public DateTime? NewPickUpDate { get; set; }
     public string OriginalVehicleType { get; set; } = string.Empty;
     public string? NewVehicleType { get; set; }
     public string? DriverName { get; set; }

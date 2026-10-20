@@ -225,6 +225,7 @@ public class TripService : ITripService
             Id = trip.Id,
             ConfNumber = trip.ConfNumber!,
             PickUpDate = trip.PickUpDate,
+            OriginalPickUpDate = trip.OriginalPickUpDate,
             GarageOutTime = trip.GarageOutTime.ToString(@"hh\:mm\:ss"),
             GarageInTime = trip.GarageInTime.ToString(@"hh\:mm\:ss"),
             CompanyName = trip.CompanyName,
