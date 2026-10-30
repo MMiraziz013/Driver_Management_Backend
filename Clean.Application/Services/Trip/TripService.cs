@@ -57,6 +57,14 @@ public class TripService : ITripService
                 return new Response<TripDto>(HttpStatusCode.NotFound, "Trip not found");
             }
 
+            // Read-only, only needed for the assigned vehicle/driver fields
+            trip.Assignments = await _uow.Context.DriverAssignments
+                .AsNoTracking()
+                .Include(a => a.Vehicle)
+                .Include(a => a.Driver)
+                .Where(a => a.TripId == id)
+                .ToListAsync();
+
             return new Response<TripDto>(HttpStatusCode.OK, MapToDto(trip));
         }
         catch (Exception ex)
@@ -220,6 +228,8 @@ public class TripService : ITripService
 
     private static TripDto MapToDto(Domain.Entities.Trip trip)
     {
+        var assignment = trip.Assignments.FirstOrDefault(a => !a.HasConflict && a.VehicleId.HasValue);
+
         return new TripDto
         {
             Id = trip.Id,
@@ -243,7 +253,11 @@ public class TripService : ITripService
             ServiceTypeName = trip.ServiceType?.Name ?? "",
             VehicleTypeId = trip.VehicleTypeId,
             ServiceTypeId = trip.ServiceTypeId,
-            ReportPeriodId = trip.ReportPeriodId
+            ReportPeriodId = trip.ReportPeriodId,
+            AssignedVehicleId = assignment?.VehicleId,
+            AssignedVehiclePlate = assignment?.Vehicle?.PlateNumber,
+            AssignedDriverId = assignment?.DriverId,
+            AssignedDriverName = assignment?.Driver?.FullName
         };
     }
 

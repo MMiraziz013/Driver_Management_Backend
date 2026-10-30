@@ -24,4 +24,12 @@ public class TripDto
     public int VehicleTypeId { get; set; }
     public int ServiceTypeId { get; set; }
     public int ReportPeriodId { get; set; }
+
+    /// <summary>
+    /// Vehicle and driver from the trip's successful assignment; null when unassigned or in conflict
+    /// </summary>
+    public int? AssignedVehicleId { get; set; }
+    public string? AssignedVehiclePlate { get; set; }
+    public int? AssignedDriverId { get; set; }
+    public string? AssignedDriverName { get; set; }
 }

@@ -40,6 +40,8 @@ public class TripRepository : ITripRepository
         return await _context.Trips
             .Include(t => t.VehicleType)
             .Include(t => t.ServiceType)
+            .Include(t => t.Assignments).ThenInclude(a => a.Vehicle)
+            .Include(t => t.Assignments).ThenInclude(a => a.Driver)
             .Where(t => t.ReportPeriodId == periodId)
             .OrderBy(t => t.PickUpDate)
             .ThenBy(t => t.GarageOutTime)
