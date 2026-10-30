@@ -33,6 +33,18 @@ public class AssistantServiceTests
     }
 
     [Fact]
+    public void BuildMessages_ListsGuideTopics_AndRepeatsRulesAfterGuide()
+    {
+        var guide = "# How assignment works\nbody\n## Step 1\n---\n# Fuel\nmore";
+
+        var system = AssistantService.BuildMessages(Options, guide, Ask("q"))[0].Content;
+
+        Assert.Contains("- How assignment works\n- Fuel", system);
+        Assert.DoesNotContain("- Step 1", system);
+        Assert.True(system.LastIndexOf("refusal sentence") > system.IndexOf("END OF GUIDE"));
+    }
+
+    [Fact]
     public void BuildMessages_DropsClientSystemTurns_AndKeepsOnlyRecentHistory()
     {
         var request = Ask("q",
