@@ -1,5 +1,6 @@
 ﻿using Clean.Application.Abstractions;
 using Clean.Application.Services.Accounting;
+using Clean.Application.Services.Assistant;
 using Clean.Application.Services.Bonus;
 using Clean.Application.Services.Fuel;
 using Clean.Application.Services.Company;
@@ -56,6 +57,14 @@ public static class ApplicationInjection
             client.Timeout = TimeSpan.FromMinutes(5);
         });
         services.AddScoped<IMapboxService, MapboxService>();
+
+        services.Configure<AssistantOptions>(configuration.GetSection(AssistantOptions.SectionName));
+        services.AddSingleton<AssistantGuide>();
+        services.AddHttpClient<IAssistantService, AssistantService>(client =>
+        {
+            // CPU-only hosts can take a while before the first token arrives
+            client.Timeout = TimeSpan.FromMinutes(3);
+        });
         
         services.AddTransient<IJwtTokenService, JwtTokenService>();
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));

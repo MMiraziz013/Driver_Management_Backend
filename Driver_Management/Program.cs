@@ -1,14 +1,17 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using System.Text.Json.Serialization;
 using ClassLibrary1;
 using ClassLibrary1.Data.Seeds;
 using Clean.Application;
 using Clean.Application.Abstractions;
 using Clean.Application.Security.Permission;
+using Driver_Management.Controllers;
 using Driver_Management.Middlewares;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
@@ -146,6 +149,21 @@ public static class Program
         builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
         builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
+        // ---------------- RATE LIMITING ----------------
+        // The assistant runs on our own hardware — cap questions per user.
+        builder.Services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.AddPolicy(AssistantController.RateLimitPolicy, context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anonymous",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 20,
+                        Window = TimeSpan.FromMinutes(5)
+                    }));
+        });
+
         // ---------------- Clean Architecture ----------------
         builder.Services.AddScoped<LoggingMiddleware>();
         builder.Services.AddIdentityServices(builder.Configuration);
@@ -187,6 +205,7 @@ public static class Program
 
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseRateLimiter();
 
         app.MapControllers();
 

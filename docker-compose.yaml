@@ -16,6 +16,8 @@ services:
       - JWT__Key=${JWT_KEY}
       - JWT__Issuer=DriverManagement
       - JWT__Audience=DriverManagementUsers
+      - Assistant__BaseUrl=http://ollama:11434
+      - Assistant__Model=${ASSISTANT_MODEL:-qwen2.5:3b}
     depends_on:
       db:
         condition: service_healthy
@@ -27,6 +29,32 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  # Self-hosted model for the in-app assistant. Internal only — no published port.
+  # First run: docker exec driver-management-ollama ollama pull qwen2.5:3b
+  ollama:
+    image: ollama/ollama:0.12.6
+    container_name: driver-management-ollama
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+    volumes:
+      - driver-management-ollama-data:/root/.ollama
+    networks:
+      - driver-management-network
+    # Uncomment on a host with an NVIDIA GPU (needs nvidia-container-toolkit):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
 
   db:
     image: postgres:17-alpine
@@ -59,3 +87,4 @@ networks:
 
 volumes:
   driver-management-postgresql-data:
+  driver-management-ollama-data:

@@ -23,6 +23,11 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- Feature guides the in-app assistant answers from -->
+        <Content Include="AssistantGuide\**\*.md" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
+    <ItemGroup>
       <ProjectReference Include="..\Clean.Application\Clean.Application.csproj" />
       <ProjectReference Include="..\Clean.Infrastructure\Clean.Infrastructure.csproj" />
     </ItemGroup>
