@@ -40,7 +40,7 @@ public class AssistantService : IAssistantService
             Model = _options.Model,
             Stream = true,
             Temperature = 0.1,
-            Messages = BuildMessages(_options, _guide.Content, request)
+            Messages = BuildMessages(_options, _guide.GetContent(AssistantGuide.DetectLanguage(request.Question)), request)
         };
 
         var url = $"{_options.BaseUrl.TrimEnd('/')}/v1/chat/completions";
@@ -109,7 +109,11 @@ public class AssistantService : IAssistantService
               Russian: "У меня пока нет информации об этом. Пожалуйста, обратитесь к администратору системы."
               Uzbek: "Bu haqida hozircha ma'lumotim yo'q. Iltimos, tizim administratoriga murojaat qiling."
             - Never guess numbers, formulas, rules or reasons. Never list "possible factors".
-            - Keep answers short and practical. Use the same names for screens, buttons and settings as the guide.
+            - When asked how something works, give ALL the steps and rules of the matching guide section, in order.
+              Don't add an introduction or a summary.
+            - Reuse the guide's own wording and terms; don't translate or rephrase them.
+            - Page and button names (Assign, Resolve, Reschedule, Fuel, Trips, Cars…) appear in English on screen:
+              keep them in English, exactly as in the guide.
             - Answer in the language the user writes in (Uzbek, Russian or English).
             - You cannot see or change any data in the system. Don't claim to.
 

@@ -70,6 +70,40 @@ public class AssistantServiceTests
     }
 
     [Theory]
+    [InlineData("как работает логика расставления водителей?", "ru")]
+    [InlineData("How is idle fuel counted?", "en")]
+    [InlineData("Haydovchilar qanday tanlanadi?", "en")]
+    [InlineData("What does Reschedule do в периоде?", "ru")]
+    public void DetectLanguage_PicksRussianForCyrillic(string question, string expected)
+    {
+        Assert.Equal(expected, AssistantGuide.DetectLanguage(question));
+    }
+
+    [Fact]
+    public void GetContent_UsesLanguageFolder_AndFallsBackToEnglish()
+    {
+        var root = Directory.CreateTempSubdirectory("assistant-guide").FullName;
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "en"));
+            Directory.CreateDirectory(Path.Combine(root, "ru"));
+            File.WriteAllText(Path.Combine(root, "en", "10-b.md"), "# B");
+            File.WriteAllText(Path.Combine(root, "en", "00-a.md"), "# A");
+            File.WriteAllText(Path.Combine(root, "ru", "00-a.md"), "# А");
+
+            var guide = new AssistantGuide(Microsoft.Extensions.Options.Options.Create(new AssistantOptions { GuidePath = root }));
+
+            Assert.Equal("# А", guide.GetContent("ru"));
+            Assert.Equal("# A\n\n---\n\n# B", guide.GetContent("en"));
+            Assert.Equal(guide.GetContent("en"), guide.GetContent("uz"));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Theory]
     [InlineData("data: {\"choices\":[{\"delta\":{\"content\":\"Hi\"}}]}", "Hi", false)]
     [InlineData("data: {\"choices\":[{\"delta\":{}}]}", null, false)]
     [InlineData("data: [DONE]", null, true)]

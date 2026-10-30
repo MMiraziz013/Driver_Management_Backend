@@ -44,7 +44,7 @@ services:
     environment:
       - OLLAMA_KEEP_ALIVE=24h
       # Default 4096 tokens is too small for the guides plus chat history; overflow drops the start of the prompt
-      - OLLAMA_CONTEXT_LENGTH=8192
+      - OLLAMA_CONTEXT_LENGTH=16384
     volumes:
       - driver-management-ollama-data:/root/.ollama
     networks:
